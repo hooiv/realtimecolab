@@ -1,74 +1,243 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
-import { Socket } from 'socket.io-client'; // Assuming Socket type is imported from socket.io-client
+import { Socket } from 'socket.io-client';
+import { v4 as uuidv4 } from 'uuid';
+
+import type { 
+  Command, 
+  UpdateTaskPropertyCommandData, 
+  ActivityLogEntry, 
+  ChecklistItem, 
+  ChecklistUpdateAction,
+  TaskData as AppTaskData
+} from '../App';
 
 interface PropertiesPanelProps {
   selectedObject: THREE.Mesh | null;
   socket: Socket | null;
+  recordCommand: (command: Command<UpdateTaskPropertyCommandData>) => void;
 }
 
-// Define a type for the scale state
 interface ScaleState {
   x: number;
   y: number;
   z: number;
 }
 
-const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socket }) => {
-  const [color, setColor] = useState('#ffffff');
-  const [scale, setScale] = useState<ScaleState>({ x: 1, y: 1, z: 1 }); // Initialize scale state
+const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socket, recordCommand }) => {
+  const [objectColor, setObjectColor] = useState('#ffffff');
+  const [objectScale, setObjectScale] = useState<ScaleState>({ x: 1, y: 1, z: 1 });
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskStatus, setTaskStatus] = useState<'To Do' | 'In Progress' | 'Done'>('To Do');
+  const [taskDescription, setTaskDescription] = useState('');
+  const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [newChecklistItemText, setNewChecklistItemText] = useState('');
+  const [editingChecklistItem, setEditingChecklistItem] = useState<{ id: string; text: string } | null>(null);
+  const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
 
   useEffect(() => {
     if (selectedObject) {
       if (selectedObject.material instanceof THREE.MeshStandardMaterial) {
-        setColor('#' + selectedObject.material.color.getHexString());
+        setObjectColor('#' + selectedObject.material.color.getHexString());
       }
-      // Update scale state from selected object
-      setScale({ x: selectedObject.scale.x, y: selectedObject.scale.y, z: selectedObject.scale.z });
+      setObjectScale({ x: selectedObject.scale.x, y: selectedObject.scale.y, z: selectedObject.scale.z });
+
+      if (selectedObject.userData.taskData) {
+        const taskData = selectedObject.userData.taskData as AppTaskData;
+        setTaskTitle(taskData.title || '');
+        setTaskStatus(taskData.status || 'To Do');
+        setTaskDescription(taskData.description || '');
+        setChecklist(taskData.checklist || []);
+        setActivityLog(taskData.activityLog || []);
+      } else {
+        setTaskTitle(selectedObject.userData.sharedId || 'Task');
+        setTaskStatus('To Do');
+        setTaskDescription('');
+        setChecklist([]);
+        setActivityLog([]);
+      }
     } else {
-      // Reset state when no object is selected
-      setColor('#ffffff'); // Default color
-      setScale({ x: 1, y: 1, z: 1 }); // Default scale
+      setObjectColor('#ffffff');
+      setObjectScale({ x: 1, y: 1, z: 1 });
+      setTaskTitle('');
+      setTaskStatus('To Do');
+      setTaskDescription('');
+      setChecklist([]);
+      setNewChecklistItemText('');
+      setEditingChecklistItem(null);
+      setActivityLog([]);
     }
   }, [selectedObject]);
 
-  const handleColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleObjectColorChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newColor = event.target.value;
-    setColor(newColor);
+    setObjectColor(newColor);
 
     if (selectedObject && selectedObject.material instanceof THREE.MeshStandardMaterial && socket) {
-      // Apply color locally immediately
       selectedObject.material.color.set(newColor);
-
-      socket.emit('object-property-changed', {
+      socket.emit('object-property-updated', {
         objectId: selectedObject.userData.sharedId,
         property: 'color',
-        value: newColor, // Send as hex string
+        value: newColor,
+        userId: socket.id,
       });
     }
   };
 
-  // Handler for scale changes
-  const handleScaleChange = (axis: 'x' | 'y' | 'z', value: string) => {
+  const handleObjectScaleChange = (axis: 'x' | 'y' | 'z', value: string) => {
     const newScaleValue = parseFloat(value);
     if (isNaN(newScaleValue) || !selectedObject || !socket) return;
 
-    // Create a new scale object for the state and for emission
-    const newScale = { ...scale, [axis]: newScaleValue };
+    const newScale = { ...objectScale, [axis]: newScaleValue };
 
-    // Apply scale locally immediately
     selectedObject.scale[axis] = newScaleValue;
-    setScale(newScale); // Update local React state
+    setObjectScale(newScale);
 
-    socket.emit('object-property-changed', {
+    socket.emit('object-property-updated', {
       objectId: selectedObject.userData.sharedId,
       property: 'scale',
-      value: { // Send the full scale object
+      value: {
         x: selectedObject.scale.x,
         y: selectedObject.scale.y,
         z: selectedObject.scale.z,
       },
+      userId: socket.id,
     });
+  };
+
+  const createTaskPropertyUpdateCommand = useCallback((property: 'taskTitle' | 'taskDescription' | 'taskChecklistUpdate', value: string | ChecklistUpdateAction, oldValue: string | ChecklistItem[]) => {
+    if (!selectedObject || !socket?.id) return null;
+
+    const commandData: UpdateTaskPropertyCommandData = {
+      objectId: selectedObject.userData.sharedId,
+      property,
+      value,
+      oldValue,
+      userId: socket.id,
+    };
+
+    return {
+      description: `Update task ${property}`,
+      actionType: 'updateTaskProperty',
+      actionData: commandData,
+      execute: () => {}, 
+      undo: () => {}
+    };
+  }, [selectedObject, socket]);
+
+  const handleTaskTitleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = event.target.value;
+    const oldTitle = selectedObject?.userData?.taskData?.title || '';
+    setTaskTitle(newTitle);
+
+    const command = createTaskPropertyUpdateCommand('taskTitle', newTitle, oldTitle);
+    if (command) {
+      recordCommand(command as Command<UpdateTaskPropertyCommandData>);
+    }
+  };
+
+  const handleTaskStatusChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const newStatus = event.target.value as 'To Do' | 'In Progress' | 'Done';
+    setTaskStatus(newStatus);
+    if (selectedObject && socket) {
+      const oldStatus = selectedObject.userData.taskData?.status || 'To Do';
+      if (!selectedObject.userData.taskData) {
+        selectedObject.userData.taskData = { title: taskTitle, status: newStatus, description: taskDescription, checklist: checklist, activityLog: activityLog };
+      } else {
+        selectedObject.userData.taskData.status = newStatus;
+      }
+      socket.emit('object-property-updated', {
+        objectId: selectedObject.userData.sharedId,
+        property: 'taskStatus',
+        value: newStatus,
+        userId: socket.id,
+        activityLogEntry: {
+          timestamp: new Date().toISOString(),
+          userId: socket.id || 'unknown',
+          action: 'Task status updated via panel',
+          details: `Status changed from '${oldStatus}' to '${newStatus}'`
+        }
+      });
+    }
+  };
+
+  const handleTaskDescriptionChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newDescription = event.target.value;
+    const oldDescription = selectedObject?.userData?.taskData?.description || '';
+    setTaskDescription(newDescription);
+
+    const command = createTaskPropertyUpdateCommand('taskDescription', newDescription, oldDescription);
+    if (command) {
+      recordCommand(command as Command<UpdateTaskPropertyCommandData>);
+    }
+  };
+
+  const handleChecklistAction = useCallback((checklistAction: ChecklistUpdateAction) => {
+    if (!selectedObject || !socket?.id) return;
+
+    const oldChecklist = [...checklist];
+
+    let updatedChecklist = [...checklist];
+    if (checklistAction.action === 'add' && checklistAction.item) {
+      updatedChecklist.push(checklistAction.item);
+    } else if (checklistAction.action === 'remove' && checklistAction.itemId) {
+      updatedChecklist = updatedChecklist.filter(item => item.id !== checklistAction.itemId);
+    } else if (checklistAction.action === 'toggle' && checklistAction.itemId) {
+      updatedChecklist = updatedChecklist.map(item =>
+        item.id === checklistAction.itemId ? { ...item, completed: checklistAction.completed! } : item
+      );
+    } else if (checklistAction.action === 'editText' && checklistAction.itemId && checklistAction.newText !== undefined) {
+      updatedChecklist = updatedChecklist.map(item =>
+        item.id === checklistAction.itemId ? { ...item, text: checklistAction.newText! } : item
+      );
+    }
+    setChecklist(updatedChecklist);
+
+    const command = createTaskPropertyUpdateCommand('taskChecklistUpdate', checklistAction, oldChecklist);
+    if (command) {
+      recordCommand(command as Command<UpdateTaskPropertyCommandData>);
+    }
+  }, [selectedObject, socket, checklist, createTaskPropertyUpdateCommand, recordCommand]);
+
+  const handleAddChecklistItem = () => {
+    if (newChecklistItemText.trim() === '') return;
+    const newItem: ChecklistItem = {
+      id: uuidv4(),
+      text: newChecklistItemText.trim(),
+      completed: false,
+    };
+    handleChecklistAction({ action: 'add', item: newItem });
+    setNewChecklistItemText('');
+  };
+
+  const handleToggleChecklistItem = (itemId: string) => {
+    const item = checklist.find(i => i.id === itemId);
+    if (item) {
+      handleChecklistAction({ action: 'toggle', itemId, completed: !item.completed });
+    }
+  };
+
+  const handleRemoveChecklistItem = (itemId: string) => {
+    handleChecklistAction({ action: 'remove', itemId });
+  };
+
+  const handleEditChecklistItemText = (itemId: string, currentText: string) => {
+    setEditingChecklistItem({ id: itemId, text: currentText });
+  };
+
+  const handleSaveEditedChecklistItemText = (itemId: string) => {
+    if (!editingChecklistItem || editingChecklistItem.id !== itemId || editingChecklistItem.text.trim() === '') {
+      setEditingChecklistItem(null);
+      return;
+    }
+    const newText = editingChecklistItem.text.trim();
+    handleChecklistAction({ action: 'editText', itemId, newText });
+    setEditingChecklistItem(null);
+  };
+
+  const formatTimestamp = (isoString: string) => {
+    const date = new Date(isoString);
+    return date.toLocaleString();
   };
 
   if (!selectedObject) {
@@ -102,55 +271,156 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
       borderRadius: '8px',
       zIndex: 200,
       fontFamily: 'Arial, sans-serif',
-      width: '250px', // Adjusted width
+      width: '300px',
+      maxHeight: 'calc(100vh - 40px)',
+      overflowY: 'auto',
       boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
     }}>
       <h4 style={{ marginTop: 0, marginBottom: '15px', borderBottom: '1px solid #555', paddingBottom: '10px' }}>
         Properties: <span style={{ fontWeight: 'normal' }}>{selectedObject.userData.sharedId}</span>
       </h4>
+
       <div style={{ marginBottom: '15px' }}>
-        <label htmlFor="objectColor" style={{ marginRight: '10px', display: 'block', marginBottom: '5px' }}>Color:</label>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <input
-            type="color"
-            id="objectColor"
-            value={color}
-            onChange={handleColorChange}
-            style={{ verticalAlign: 'middle', height: '30px', width: '50px', border: 'none', padding: '0', borderRadius: '4px' }}
-          />
-          <span style={{ marginLeft: '10px', verticalAlign: 'middle', background: '#444', padding: '5px 8px', borderRadius: '4px' }}>{color}</span>
+        <label htmlFor="objectColor" style={{ display: 'block', marginBottom: '5px' }}>Color:</label>
+        <input
+          type="color"
+          id="objectColor"
+          value={objectColor}
+          onChange={handleObjectColorChange}
+          style={{ width: '100%', height: '30px', border: '1px solid #666', borderRadius: '4px', backgroundColor: '#444', cursor: 'pointer' }}
+        />
+      </div>
+
+      <div style={{ marginBottom: '15px' }}>
+        <label style={{ display: 'block', marginBottom: '5px' }}>Scale:</label>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          {['x', 'y', 'z'].map(axis => (
+            <div key={axis} style={{ flex: 1, marginRight: axis !== 'z' ? '10px' : '0' }}>
+              <label htmlFor={`scale-${axis}`} style={{ display: 'block', marginBottom: '3px' }}>{axis.toUpperCase()}:</label>
+              <input
+                type="number"
+                id={`scale-${axis}`}
+                value={objectScale[axis as keyof ScaleState]}
+                onChange={(e) => handleObjectScaleChange(axis as 'x' | 'y' | 'z', e.target.value)}
+                step={0.1}
+                style={{ width: '100%', padding: '8px', border: '1px solid #666', borderRadius: '4px', backgroundColor: '#444', color: '#fff', boxSizing: 'border-box' }}
+              />
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Scale Controls */}
-      <div style={{ marginBottom: '10px' }}>
-        <label style={{ display: 'block', marginBottom: '5px' }}>Scale:</label>
-        <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr', gap: '5px 10px', alignItems: 'center' }}>
-          <span>X:</span>
+      <div style={{ marginBottom: '15px' }}>
+        <label htmlFor="taskTitle" style={{ display: 'block', marginBottom: '5px' }}>Task Title:</label>
+        <input
+          type="text"
+          id="taskTitle"
+          value={taskTitle}
+          onChange={handleTaskTitleChange}
+          style={{ width: '100%', padding: '8px', border: '1px solid #666', borderRadius: '4px', backgroundColor: '#444', color: '#fff', boxSizing: 'border-box' }}
+        />
+      </div>
+
+      <div style={{ marginBottom: '15px' }}>
+        <label htmlFor="taskStatus" style={{ display: 'block', marginBottom: '5px' }}>Status:</label>
+        <select
+          id="taskStatus"
+          value={taskStatus}
+          onChange={handleTaskStatusChange}
+          style={{ width: '100%', padding: '8px', border: '1px solid #666', borderRadius: '4px', backgroundColor: '#444', color: '#fff' }}
+        >
+          <option value="To Do">To Do</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Done">Done</option>
+        </select>
+      </div>
+
+      <div style={{ marginBottom: '15px' }}>
+        <label htmlFor="taskDescription" style={{ display: 'block', marginBottom: '5px' }}>Description:</label>
+        <textarea
+          id="taskDescription"
+          value={taskDescription}
+          onChange={handleTaskDescriptionChange}
+          rows={3}
+          style={{ width: '100%', padding: '8px', border: '1px solid #666', borderRadius: '4px', backgroundColor: '#444', color: '#fff', boxSizing: 'border-box', resize: 'vertical' }}
+        />
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        <h5 style={{ marginBottom: '10px', borderBottom: '1px solid #444', paddingBottom: '5px' }}>Checklist</h5>
+        {checklist.length === 0 && <p style={{ fontSize: '0.9em', color: '#aaa' }}>No items yet.</p>}
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+          {checklist.map(item => (
+            <li key={item.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', padding: '5px', background: 'rgba(255,255,255,0.05)', borderRadius: '3px' }}>
+              <input
+                type="checkbox"
+                checked={item.completed}
+                onChange={() => handleToggleChecklistItem(item.id)}
+                style={{ marginRight: '10px', cursor: 'pointer' }}
+              />
+              {editingChecklistItem?.id === item.id ? (
+                <input
+                  type="text"
+                  value={editingChecklistItem.text}
+                  onChange={(e) => setEditingChecklistItem(prev => prev ? { ...prev, text: e.target.value } : null)}
+                  onBlur={() => handleSaveEditedChecklistItemText(item.id)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveEditedChecklistItemText(item.id)}
+                  autoFocus
+                  style={{ flexGrow: 1, padding: '5px', border: '1px solid #777', borderRadius: '3px', backgroundColor: '#555', color: '#fff' }}
+                />
+              ) : (
+                <span
+                  onClick={() => handleEditChecklistItemText(item.id, item.text)}
+                  style={{ flexGrow: 1, textDecoration: item.completed ? 'line-through' : 'none', opacity: item.completed ? 0.7 : 1, cursor: 'pointer' }}
+                >
+                  {item.text}
+                </span>
+              )}
+              <button
+                onClick={() => handleRemoveChecklistItem(item.id)}
+                style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', fontSize: '1.1em' }}
+                title="Remove item"
+              >
+                &times;
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div style={{ display: 'flex', marginTop: '10px' }}>
           <input
-            type="number"
-            step="0.1"
-            value={scale.x}
-            onChange={(e) => handleScaleChange('x', e.target.value)}
-            style={{ width: '100%', padding: '5px', border: '1px solid #666', borderRadius: '4px', backgroundColor: '#444', color: '#fff' }}
+            type="text"
+            value={newChecklistItemText}
+            onChange={(e) => setNewChecklistItemText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem()}
+            placeholder="Add checklist item..."
+            style={{ flexGrow: 1, marginRight: '8px', padding: '8px', border: '1px solid #666', borderRadius: '4px', backgroundColor: '#444', color: '#fff' }}
           />
-          <span>Y:</span>
-          <input
-            type="number"
-            step="0.1"
-            value={scale.y}
-            onChange={(e) => handleScaleChange('y', e.target.value)}
-            style={{ width: '100%', padding: '5px', border: '1px solid #666', borderRadius: '4px', backgroundColor: '#444', color: '#fff' }}
-          />
-          <span>Z:</span>
-          <input
-            type="number"
-            step="0.1"
-            value={scale.z}
-            onChange={(e) => handleScaleChange('z', e.target.value)}
-            style={{ width: '100%', padding: '5px', border: '1px solid #666', borderRadius: '4px', backgroundColor: '#444', color: '#fff' }}
-          />
+          <button
+            onClick={handleAddChecklistItem}
+            style={{ padding: '8px 12px', border: 'none', borderRadius: '4px', backgroundColor: '#007bff', color: 'white', cursor: 'pointer' }}
+          >
+            Add
+          </button>
         </div>
+      </div>
+
+      <div>
+        <h5 style={{ marginBottom: '10px', borderBottom: '1px solid #444', paddingBottom: '5px' }}>Activity Log</h5>
+        {activityLog.length === 0 && <p style={{ fontSize: '0.9em', color: '#aaa' }}>No activity yet.</p>}
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: '200px', overflowY: 'auto' }}>
+          {activityLog.slice().reverse().map((entry, index) => (
+            <li key={index} style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px dashed #333', fontSize: '0.85em' }}>
+              <div style={{ fontWeight: 'bold', color: '#bbb' }}>
+                {entry.action}
+                <span style={{ fontWeight: 'normal', color: '#888', marginLeft: '5px' }}>
+                  by {entry.userId === socket?.id ? `You (${entry.userId.substring(0,5)}...)` : entry.userId.substring(0,5)+'...'}
+                </span>
+              </div>
+              {entry.details && <div style={{ color: '#ccc', marginTop: '3px', wordBreak: 'break-word' }}>{entry.details}</div>}
+              <div style={{ color: '#777', marginTop: '3px', fontSize: '0.9em' }}>{formatTimestamp(entry.timestamp)}</div>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );

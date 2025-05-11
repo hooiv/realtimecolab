@@ -16,7 +16,9 @@ const io = new Server(server, {
   cors: {
     origin: "http://localhost:5173", // Allow your Vite dev server
     methods: ["GET", "POST"]
-  }
+  },
+  pingTimeout: 60000, // Increase ping timeout
+  pingInterval: 25000 // Ensure pings are sent
 });
 
 const connectedUsers = new Map(); // Stores { id: socket.id, color: '#RRGGBB' }
