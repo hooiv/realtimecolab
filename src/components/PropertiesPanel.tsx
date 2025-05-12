@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { Socket } from 'socket.io-client';
 import { v4 as uuidv4 } from 'uuid';
+import { useAuth } from '../context/AuthContext';
 
 import type { 
   ActivityLogEntry, 
@@ -27,6 +28,7 @@ interface ScaleState {
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socket, onPropertyUpdate }) => {
+  const { authState } = useAuth(); // Get auth context
   const [objectColor, setObjectColor] = useState('#ffffff');
   const [objectScale, setObjectScale] = useState<ScaleState>({ x: 1, y: 1, z: 1 });
   const [taskTitle, setTaskTitle] = useState('');
@@ -394,11 +396,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
         {activityLog.length === 0 && <p style={{ fontSize: '0.9em', color: '#aaa' }}>No activity yet.</p>}
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: '200px', overflowY: 'auto' }}>
           {activityLog.slice().reverse().map((entry, index) => (
-            <li key={index} style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px dashed #333', fontSize: '0.85em' }}>
-              <div style={{ fontWeight: 'bold', color: '#bbb' }}>
-                {entry.action}
-                <span style={{ fontWeight: 'normal', color: '#888', marginLeft: '5px' }}>
-                  by {entry.userId === socket?.id ? `You (${entry.userId.substring(0,5)}...)` : entry.userId.substring(0,5)+'...'}
+            <li key={index} style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px dashed #333', fontSize: '0.85em' }}>              <div style={{ fontWeight: 'bold', color: '#bbb' }}>
+                {entry.action}                <span style={{ fontWeight: 'normal', color: '#888', marginLeft: '5px' }}>
+                  by {entry.userId === socket?.id || (authState.user && entry.userId === authState.user.id) 
+                      ? `You (${authState.user?.username || 'Guest'})` 
+                      : `User-${entry.userId.substring(0,5)}`}
                 </span>
               </div>
               {entry.details && <div style={{ color: '#ccc', marginTop: '3px', wordBreak: 'break-word' }}>{entry.details}</div>}

@@ -1,0 +1,106 @@
+.landing-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #282c34 0%, #1a1d22 100%);
+  color: white;
+  font-family: Arial, sans-serif;
+  text-align: center;
+  padding: 2rem;
+  position: relative;
+}
+
+.landing-content {
+  max-width: 1200px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 2rem 0;
+}
+
+.landing-header {
+  margin-bottom: 3rem;
+}
+
+.landing-header h1 {
+  font-size: 3.5rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(90deg, #61dafb, #bb86fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+}
+
+.landing-header p {
+  font-size: 1.2rem;
+  max-width: 600px;
+  color: #ccc;
+  line-height: 1.6;
+}
+
+.auth-section {
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.guest-login {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.guest-login p {
+  margin-bottom: 1rem;
+  color: #ccc;
+}
+
+.guest-button {
+  padding: 0.8rem 1.5rem;
+  background-color: rgba(97, 218, 251, 0.1);
+  color: #61dafb;
+  border: 1px solid #61dafb;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.guest-button:hover {
+  background-color: rgba(97, 218, 251, 0.2);
+  transform: translateY(-2px);
+}
+
+footer {
+  margin-top: 2rem;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .landing-header h1 {
+    font-size: 2.5rem;
+  }
+  
+  .landing-content {
+    padding: 1rem;
+  }
+}
+
+/* Animation for the landing page */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.landing-content {
+  animation: fadeIn 0.8s ease-out forwards;
+}

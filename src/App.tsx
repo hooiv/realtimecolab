@@ -6,6 +6,7 @@ import io, { Socket } from 'socket.io-client';
 import './App.css';
 import PropertiesPanel from './components/PropertiesPanel';
 import LandingPage from './components/LandingPage'; // Import LandingPage
+import { useAuth } from './context/AuthContext'; // Import auth context
 
 export interface ChecklistItem {
   id: string;
@@ -55,6 +56,7 @@ interface ObjectPropertyUpdateData {
 interface UserData {
   id: string;
   color: string;
+  username?: string; // Optional username for authenticated users
 }
 
 interface CursorUpdateData {
@@ -640,80 +642,128 @@ class DeleteObjectCommandImpl implements Command<DeleteObjectCommandData> {
   }
 }
 
-const socket: Socket = io('http://localhost:3001'); // Allow Socket.IO to negotiate transport
+// Debug listeners for Socket.IO client - these are defined at global scope for debugging help
+const debugSocketListeners = (socket: Socket) => {
+  socket.on("connect", () => {
+    console.log("Socket.IO connected successfully:", socket.id);
+  });
 
-// Debug listeners for Socket.IO client
-socket.on("connect", () => {
-  console.log("Socket.IO connected successfully:", socket.id);
-});
+  socket.on("connect_error", (err: any) => {
+    console.error("Socket.IO connect_error:", err);
+    console.error(`Connect error message: ${err.message}`);
+    if (err.data) {
+      console.error("Connect error data:", err.data);
+    }
+    if (err.description) {
+      console.error("Connect error description:", err.description);
+    }
+    if (err.context) {
+      console.error("Connect error context:", err.context);
+    }
+  });
 
-socket.on("connect_error", (err: any) => { // Use err: any
-  console.error("Socket.IO connect_error:", err);
-  console.error(`Connect error message: ${err.message}`);
-  if (err.data) {
-    console.error("Connect error data:", err.data);
-  }
-  // Attempt to log other common properties for Socket.IO errors
-  if (err.description) { // For Socket.IO v3+
-    console.error("Connect error description:", err.description);
-  }
-  if (err.context) { // For Socket.IO v3+
-    console.error("Connect error context:", err.context);
-  }
-});
+  socket.on("connect_timeout", (timeout: any) => {
+    console.error("Socket.IO connect_timeout:", timeout);
+  });
 
-socket.on("connect_timeout", (timeout: any) => {
-  console.error("Socket.IO connect_timeout:", timeout);
-});
+  socket.on("error", (err: any) => {
+    console.error("Socket.IO error:", err);
+    console.error(`Error message: ${err.message}`);
+    if (err.data) {
+      console.error("Error data:", err.data);
+    }
+  });
 
-socket.on("error", (err: any) => { // Use err: any
-  console.error("Socket.IO error:", err);
-  console.error(`Error message: ${err.message}`);
-  if (err.data) {
-    console.error("Error data:", err.data);
-  }
-});
+  socket.on("disconnect", (reason: string, description?: any) => {
+    console.warn(`Socket.IO disconnected: ${reason}`);
+    if (description) {
+      console.warn("Disconnect description:", description);
+    }
+    if (reason === "io server disconnect") {
+      // The disconnection was initiated by the server
+    }
+  });
 
-socket.on("disconnect", (reason: string, description?: any) => { // reason as string, description as any
-  console.warn(`Socket.IO disconnected: ${reason}`);
-  if (description) {
-    console.warn("Disconnect description:", description);
-  }
-  if (reason === "io server disconnect") {
-    // The disconnection was initiated by the server
-  }
-});
+  socket.on("reconnect_attempt", (attemptNumber: number) => {
+    console.log(`Socket.IO reconnect_attempt: ${attemptNumber}`);
+  });
 
-socket.on("reconnect_attempt", (attemptNumber: number) => {
-  console.log(`Socket.IO reconnect_attempt: ${attemptNumber}`);
-});
+  socket.on("reconnecting", (attemptNumber: number) => {
+    console.log(`Socket.IO reconnecting: attempt ${attemptNumber}`);
+  });
 
-socket.on("reconnecting", (attemptNumber: number) => {
-  console.log(`Socket.IO reconnecting: attempt ${attemptNumber}`);
-});
+  socket.on("reconnect_error", (err: any) => {
+    console.error("Socket.IO reconnect_error:", err);
+    console.error(`Reconnect error message: ${err.message}`);
+    if (err.data) {
+      console.error("Reconnect error data:", err.data);
+    }
+  });
 
-socket.on("reconnect_error", (err: any) => { // Use err: any
-  console.error("Socket.IO reconnect_error:", err);
-  console.error(`Reconnect error message: ${err.message}`);
-  if (err.data) {
-    console.error("Reconnect error data:", err.data);
-  }
-});
+  socket.on("reconnect_failed", () => {
+    console.error("Socket.IO reconnect_failed");
+  });
 
-socket.on("reconnect_failed", () => {
-  console.error("Socket.IO reconnect_failed");
-});
+  socket.on("ping", () => {
+    console.log("Socket.IO ping sent by client");
+  });
 
-socket.on("ping", () => {
-  console.log("Socket.IO ping sent by client");
-});
-
-socket.on("pong", (latency: number) => {
-  console.log(`Socket.IO pong received by client: ${latency}ms`);
-});
+  socket.on("pong", (latency: number) => {
+    console.log(`Socket.IO pong received by client: ${latency}ms`);
+  });
+};
 
 
 function App() {
+  const { authState, setSocket } = useAuth(); // Access auth context
+  const socketRef = useRef<Socket | null>(null);
+  
+  // Initialize socket with authentication
+  const initializeSocket = useCallback(() => {
+    if (socketRef.current) {
+      console.log('[initializeSocket] Socket already exists, reusing existing socket');
+      return socketRef.current;
+    }
+
+    console.log('[initializeSocket] Creating new socket connection with auth data');
+    const options: any = {};
+    
+    // Add auth data to socket connection if user is authenticated
+    if (authState.isAuthenticated && authState.user?.token) {
+      options.auth = {
+        token: authState.user.token
+      };
+      console.log('[initializeSocket] Added auth token to socket options');
+    } else if (authState.isAuthenticated && authState.user) {
+      options.auth = {
+        userId: authState.user.id,
+        username: authState.user.username
+      };
+      console.log('[initializeSocket] Added user info to socket options');
+    } else {
+      console.log('[initializeSocket] No auth data available, connecting as guest');
+    }
+
+    const socket = io('http://localhost:3001', options);
+    socketRef.current = socket;
+    
+    // Add debug listeners
+    debugSocketListeners(socket);
+    
+    // Make socket available to auth context
+    setSocket(socket);
+    
+    return socket;
+  }, [authState.isAuthenticated, authState.user, setSocket]);
+
+  // Get the socket instance, creating it if needed
+  const getSocket = useCallback(() => {
+    if (!socketRef.current) {
+      return initializeSocket();
+    }
+    return socketRef.current;
+  }, [initializeSocket]);
+
   const mountRef = useRef<HTMLDivElement>(null);
   const interactiveObjects = useRef<THREE.Mesh[]>([]);
   const selectedObject = useRef<THREE.Mesh | null>(null);
@@ -915,18 +965,18 @@ function App() {
       property,
       value,
       oldValue,
-      userId: socket.id || 'system',
+      userId: getSocket()?.id || 'system',
     };
 
     const description = `Update ${property} for ${objectId}`;
     const command = new UpdateTaskPropertyCommandImpl(
       interactiveObjects,
-      socket,
+      getSocket()!,
       commandData,
       description
     );
     recordAndExecuteCommand(command);
-  }, [recordAndExecuteCommand]); // Added recordAndExecuteCommand to dependencies
+  }, [recordAndExecuteCommand, getSocket]); // Added getSocket to dependencies
 
   // Handler to switch from LandingPage to the main app
   const handleEnterApp = () => {
@@ -1118,8 +1168,22 @@ function App() {
         });
       }
 
+      const socket = getSocket();
+
       socket.on('connect', () => {
         console.log('Connected to server with ID:', socket.id);
+        
+        // Send user information if authenticated
+        if (authState.isAuthenticated && authState.user) {
+          socket.emit('user-authenticated', {
+            id: authState.user.id,
+            username: authState.user.username,
+            color: authState.user.color || '#' + Math.floor(Math.random()*16777215).toString(16)
+          });
+          console.log('[Socket connect] Emitted user-authenticated event with user data:', authState.user.username);
+        } else {
+          console.log('[Socket connect] Connected as guest with socket ID:', socket.id);
+        }
       });
 
       socket.on('disconnect', () => {
@@ -1152,16 +1216,49 @@ function App() {
 
           let cursorMesh = remoteCursorsRef.current.get(user.id);
           if (!cursorMesh) {
-            const cursorGeometry = new THREE.ConeGeometry(0.05, 0.2, 8);
-            const cursorMaterial = new THREE.MeshStandardMaterial({ color: user.color });
-            cursorMesh = new THREE.Mesh(cursorGeometry, cursorMaterial);
-            cursorMesh.name = `cursor-${user.id}`;
-            cursorMesh.rotation.x = Math.PI;
-            sceneRef.current?.add(cursorMesh);
-            remoteCursorsRef.current.set(user.id, cursorMesh);
-            console.log(`[Client ${socket.id?.substring(0,5)}] Created cursor for ${user.id}`);
+            // Create a more visible cursor with combined shapes
+            const cursorGroup = new THREE.Group();
+            
+            // Create cone for cursor pointer
+            const cursorGeometry = new THREE.ConeGeometry(0.06, 0.2, 8);
+            const cursorMaterial = new THREE.MeshStandardMaterial({ 
+              color: user.color,
+              emissive: new THREE.Color(user.color).multiplyScalar(0.4),
+              emissiveIntensity: 0.7
+            });
+            const cone = new THREE.Mesh(cursorGeometry, cursorMaterial);
+            cone.rotation.x = Math.PI; // Point downward
+            cursorGroup.add(cone);
+            
+            // Add small sphere at top for better visibility
+            const sphereGeometry = new THREE.SphereGeometry(0.04, 16, 16);
+            const sphereMaterial = new THREE.MeshStandardMaterial({ 
+              color: '#ffffff',
+              emissive: new THREE.Color(user.color),
+              emissiveIntensity: 0.5
+            });
+            const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+            sphere.position.y = 0.12; // Position at tip of cone
+            cursorGroup.add(sphere);
+            
+            cursorGroup.name = `cursor-${user.id}`;
+            sceneRef.current?.add(cursorGroup);
+            remoteCursorsRef.current.set(user.id, cursorGroup as unknown as THREE.Mesh);
+            console.log(`[Client ${socket.id?.substring(0,5)}] Created enhanced cursor for ${user.id}`);
           } else {
-            if (cursorMesh.material instanceof THREE.MeshStandardMaterial) {
+            if (cursorMesh.children.length > 0) {
+              // Update both cone and sphere colors
+              cursorMesh.children.forEach(child => {
+                if (child instanceof THREE.Mesh && child.material instanceof THREE.MeshStandardMaterial) {
+                  if (child.geometry instanceof THREE.ConeGeometry) {
+                    child.material.color.set(user.color);
+                    child.material.emissive.set(new THREE.Color(user.color).multiplyScalar(0.4));
+                  } else if (child.geometry instanceof THREE.SphereGeometry) {
+                    child.material.emissive.set(new THREE.Color(user.color));
+                  }
+                }
+              });
+            } else if (cursorMesh.material instanceof THREE.MeshStandardMaterial) {
               cursorMesh.material.color.set(user.color);
             }
           }
@@ -1183,7 +1280,7 @@ function App() {
         });
       });
 
-      socket.on('object-updated', (data: { objectId: string, position: { x: number, y: number, z: number }, rotation: { x: number, y: number, z: number, order?: THREE.EulerOrder }, scale: { x: number, y: number, z: number } }) => {
+      socket.on('object-updated', (data: { objectId: string, position: { x: number, y: number, z: number }, rotation: { x: number, y: number, z: number, order?: THREE.EulerOrder }, scale: { x: number; y: number; z: number } }) => {
         const objectToUpdate = interactiveObjects.current.find(obj => obj.userData.sharedId === data.objectId);
         if (!objectToUpdate) return;
         if (objectToUpdate.userData.sharedId !== selectedObject.current?.userData.sharedId || !isDraggingRef.current) {
@@ -1452,8 +1549,22 @@ function App() {
         if (data.userId === socket.id) return;
         const cursorMesh = remoteCursorsRef.current.get(data.userId);
         if (cursorMesh) {
+          // Use GSAP for smooth cursor movement
           gsap.to(cursorMesh.position, {
-            x: data.position.x, y: data.position.y + 0.1, z: data.position.z, duration: 0.1, ease: 'linear'
+            x: data.position.x, 
+            y: data.position.y + 0.15, // Slight lift for better visibility
+            z: data.position.z, 
+            duration: 0.2, 
+            ease: 'power2.out'
+          });
+          
+          // Make cursor "pulse" slightly when it moves
+          gsap.to(cursorMesh.scale, {
+            x: 1.2, y: 1.2, z: 1.2,
+            duration: 0.1,
+            yoyo: true,
+            repeat: 1,
+            ease: 'power1.inOut'
           });
         }
       });
@@ -1461,10 +1572,26 @@ function App() {
       socket.on('user-cursor-removed', (data: { userId: string }) => {
         const cursorToRemove = remoteCursorsRef.current.get(data.userId);
         if (cursorToRemove) {
+          // Remove cursor from scene
           sceneRef.current?.remove(cursorToRemove);
-          cursorToRemove.geometry.dispose();
+          
+          // Clean up all children if it's a group
+          if (cursorToRemove.children && cursorToRemove.children.length > 0) {
+            cursorToRemove.children.forEach(child => {
+              if (child instanceof THREE.Mesh) {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material instanceof THREE.Material) child.material.dispose();
+              }
+            });
+          }
+          
+          // Clean up the cursor itself
+          if (cursorToRemove.geometry) cursorToRemove.geometry.dispose();
           if (cursorToRemove.material instanceof THREE.Material) cursorToRemove.material.dispose();
+          
+          // Remove from tracking map
           remoteCursorsRef.current.delete(data.userId);
+          console.log(`[Client] Removed cursor for user ${data.userId}`);
         }
       });
 
@@ -1661,16 +1788,20 @@ function App() {
         
         if (setupAttempted) { 
           console.log('[Main Effect] Proceeding with full cleanup of resources.');
-          socket.off('connect');
-          socket.off('disconnect');
-          socket.off('server-event');
-          socket.off('object-updated');
-          socket.off('object-created');
-          socket.off('object-deleted');
-          socket.off('user-list-updated');
-          socket.off('object-property-updated');
-          socket.off('cursor-updated');
-          socket.off('user-cursor-removed');
+          
+          const socket = socketRef.current;
+          if (socket) {
+            socket.off('connect');
+            socket.off('disconnect');
+            socket.off('server-event');
+            socket.off('object-updated');
+            socket.off('object-created');
+            socket.off('object-deleted');
+            socket.off('user-list-updated');
+            socket.off('object-property-updated');
+            socket.off('cursor-updated');
+            socket.off('user-cursor-removed');
+          }
           window.removeEventListener('resize', handleResize);
 
           if (capturedRenderer && capturedRenderer.domElement) {
@@ -1707,6 +1838,17 @@ function App() {
           capturedOriginalMaterials.clear();
 
           capturedRemoteCursors.forEach(cursor => {
+            // Clean up all children if it's a group
+            if (cursor.children && cursor.children.length > 0) {
+              cursor.children.forEach(child => {
+                if (child instanceof THREE.Mesh) {
+                  if (child.geometry) child.geometry.dispose();
+                  if (child.material instanceof THREE.Material) child.material.dispose();
+                }
+              });
+            }
+            
+            // Clean up the cursor itself
             if(cursor.geometry) cursor.geometry.dispose();
             if(cursor.material && cursor.material instanceof THREE.Material) cursor.material.dispose();
           });
@@ -1743,7 +1885,7 @@ function App() {
         console.error('[Main Effect] Error stack:', error.stack);
       }
     }
-  }, [showLandingPage, recordAndExecuteCommand, updateUndoRedoState, handleUndo, handleRedo, animateTaskStatusUpdate]);
+  }, [showLandingPage, recordAndExecuteCommand, updateUndoRedoState, handleUndo, handleRedo, animateTaskStatusUpdate, getSocket]);
 
   const sphereExists = interactiveObjects.current.some(obj => obj.userData.sharedId === 'shared_sphere');
 
@@ -1775,7 +1917,7 @@ function App() {
       if (!overlay) return;
       overlay.innerHTML = '';
       connectedUsers.forEach(user => {
-        if (user.id === socket.id) return; // Don't show your own cursor
+        if (user.id === getSocket()?.id) return; // Don't show your own cursor
         const cursorMesh = remoteCursorsRef.current.get(user.id);
         if (cursorMesh && rendererRef.current && cameraRef.current) {
           // Project 3D position to 2D screen
@@ -1783,20 +1925,45 @@ function App() {
           vector.project(cameraRef.current);
           const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
           const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+          
+          // Create cursor container
+          const cursorContainer = document.createElement('div');
+          cursorContainer.style.position = 'absolute';
+          cursorContainer.style.left = `${x - 7}px`;
+          cursorContainer.style.top = `${y - 7}px`;
+          cursorContainer.style.display = 'flex';
+          cursorContainer.style.flexDirection = 'column';
+          cursorContainer.style.alignItems = 'center';
+          cursorContainer.style.zIndex = '10000';
+          
+          // Create cursor dot
           const dot = document.createElement('div');
-          dot.style.position = 'absolute';
-          dot.style.left = `${x - 7}px`;
-          dot.style.top = `${y - 7}px`;
           dot.style.width = '14px';
           dot.style.height = '14px';
           dot.style.borderRadius = '50%';
           dot.style.background = user.color;
           dot.style.border = '2px solid #fff';
           dot.style.boxShadow = `0 0 6px ${user.color}`;
-          dot.style.opacity = '0.85';
+          dot.style.opacity = '0.95';
           dot.style.pointerEvents = 'none';
-          dot.title = user.id;
-          overlay.appendChild(dot);
+          
+          // Create name label for cursor
+          const label = document.createElement('div');
+          label.textContent = user.username || `Guest-${user.id.substring(0, 5)}`;
+          label.style.background = user.color;
+          label.style.color = '#fff';
+          label.style.padding = '2px 5px';
+          label.style.borderRadius = '3px';
+          label.style.fontSize = '10px';
+          label.style.marginTop = '2px';
+          label.style.fontWeight = 'bold';
+          label.style.boxShadow = '0 0 4px rgba(0,0,0,0.3)';
+          label.style.whiteSpace = 'nowrap';
+          
+          cursorContainer.appendChild(dot);
+          cursorContainer.appendChild(label);
+          cursorContainer.title = user.username || `Guest-${user.id.substring(0, 5)}`;
+          overlay.appendChild(cursorContainer);
         }
       });
     }
@@ -1812,7 +1979,7 @@ function App() {
       const overlay = document.getElementById('collab-cursors-overlay');
       if (overlay) overlay.innerHTML = '';
     };
-  }, [connectedUsers]);
+  }, [connectedUsers, getSocket]);
 
   // Main return statement
   if (showLandingPage) {
@@ -1824,7 +1991,7 @@ function App() {
       <div ref={mountRef} style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0 }} />
       <PropertiesPanel 
         selectedObject={currentSelectedObjectForPanel} 
-        socket={socket} 
+        socket={getSocket()!} 
         onPropertyUpdate={(property, value, oldValue) => {
           if (currentSelectedObjectForPanel?.userData?.sharedId) {
             handlePropertyUpdateFromPanel(currentSelectedObjectForPanel.userData.sharedId, property, value, oldValue);
@@ -1862,8 +2029,10 @@ function App() {
                     border: '1px solid #888',
                     marginRight: 4
                   }} />
-                  <span style={{ fontWeight: user.id === socket.id ? 'bold' : 'normal', color: user.id === socket.id ? '#007bff' : '#222' }}>
-                    {user.id === socket.id ? 'You' : user.id.substring(0, 8)}
+                  <span style={{ fontWeight: user.id === getSocket()?.id ? 'bold' : 'normal', color: user.id === getSocket()?.id ? '#007bff' : '#222' }}>
+                    {user.id === getSocket()?.id ? 
+                      `You (${authState.user?.username || 'Guest'})` : 
+                      (user.username || `Guest-${user.id.substring(0, 5)}`)}
                   </span>
                   {/* Collaborative cursor indicator */}
                   <span id={`cursor-dot-${user.id}`} style={{
@@ -1871,21 +2040,21 @@ function App() {
                     width: 10,
                     height: 10,
                     borderRadius: '50%',
-                    background: user.id === socket.id ? '#007bff' : user.color,
+                    background: user.id === getSocket()?.id ? '#007bff' : user.color,
                     marginLeft: 4,
                     opacity: 0.7,
-                    border: user.id === socket.id ? '2px solid #007bff' : '1px solid #888',
-                    boxShadow: user.id !== socket.id ? '0 0 4px ' + user.color : 'none',
+                    border: user.id === getSocket()?.id ? '2px solid #007bff' : '1px solid #888',
+                    boxShadow: user.id !== getSocket()?.id ? '0 0 4px ' + user.color : 'none',
                     transition: 'background 0.2s, box-shadow 0.2s'
                   }} />
                   {/* Real-time presence indicator */}
                   <span style={{
                     marginLeft: 4,
-                    color: user.id === socket.id ? '#007bff' : '#28a745',
+                    color: user.id === getSocket()?.id ? '#007bff' : '#28a745',
                     fontSize: 12,
                     fontWeight: 600
                   }}>
-                    {user.id === socket.id ? 'Online (You)' : 'Online'}
+                    {user.id === getSocket()?.id ? 'Online (You)' : 'Online'}
                   </span>
                 </li>
               ))}
@@ -1900,7 +2069,15 @@ function App() {
       {/* Advanced: Confetti canvas (optional, for confetti libraries) */}
       <canvas id="confetti-canvas" style={{ position: 'fixed', pointerEvents: 'none', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 3000 }} />
       {/* Collaborative cursors overlay */}
-      <div id="collab-cursors-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 4000 }} />
+      <div id="collab-cursors-overlay" style={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        width: '100vw', 
+        height: '100vh', 
+        pointerEvents: 'none', 
+        zIndex: 9999 
+      }} />
     </>
   );
 }
