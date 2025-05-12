@@ -344,7 +344,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
 
       {/* Footer */}
       <footer className="landing-footer">
-        <p>© 2023 Real-Time Collaboration Tool</p>
+        <p>© 2025 Real-Time Collaboration Tool</p>
         <div className="footer-links">
           <a href="#">Terms of Service</a>
           <a href="#">Privacy Policy</a>

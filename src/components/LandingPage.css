@@ -29,6 +29,8 @@
   z-index: 5; /* Lower z-index so auth section appears on top */
   top: 0;
   left: 0;
+  right: 0;
+  margin: 0 auto;
   pointer-events: none; /* Allow clicking through to elements below */
 }
 
@@ -44,52 +46,50 @@
 }
 
 .title-container {
-  max-width: 800px;
-  margin: 0 auto;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  padding: 1.8rem 2rem 1.2rem;
+  max-width: 600px; /* Reduced from 800px */
+  position: relative; /* Changed from absolute */
+  margin: 20px auto 0; /* Top margin instead of absolute positioning */
+  width: 80%; /* Reduced from 100% */
+  padding: 1.2rem 1.5rem 0.8rem; /* Reduced padding */
   background: linear-gradient(135deg, rgba(26, 29, 34, 0.9), rgba(20, 30, 48, 0.95)); /* Gradient background */
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(97, 218, 251, 0.3); /* React blue tinted border */
+  border: 1px solid rgba(97, 218, 251, 0.4); /* Slightly more visible border */
   z-index: 10;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 30px rgba(97, 218, 251, 0.1) inset; /* Stronger shadow for depth + inner glow */
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 30px rgba(97, 218, 251, 0.1) inset, 0 0 8px rgba(97, 218, 251, 0.3); /* Added outer glow */
   overflow: hidden; /* For the animated elements */
-  position: relative; /* For positioning the animated elements */
   text-align: center; /* Center the text */
-  border-radius: 0 0 10px 10px; /* Rounded bottom corners */
+  border-radius: 12px; /* Rounded corners all around */
 }
 
 /* Static title that's always visible */
 .static-title {
-  font-size: 2.8rem;
+  font-size: 2.2rem; /* Reduced from 2.8rem */
   font-weight: 800;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.3rem; /* Reduced from 0.5rem */
   background: linear-gradient(90deg, #61dafb, #bb86fc);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  line-height: 1.2;
+  line-height: 1.1; /* Reduced from 1.2 */
   letter-spacing: -0.02em;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
   pointer-events: auto;
   position: relative;
   z-index: 2;
   display: inline-block;
+  white-space: nowrap; /* Prevent title from wrapping */
 }
 
 /* Add animated dots in the background */
 .title-container::before {
   content: '';
   position: absolute;
-  top: -20px;
-  right: -20px;
-  width: 140px;
-  height: 140px;
-  background-image: radial-gradient(circle, rgba(97, 218, 251, 0.3) 2px, transparent 3px);
-  background-size: 20px 20px;
+  top: -10px;
+  right: -10px;
+  width: 100px; /* Reduced from 140px */
+  height: 100px; /* Reduced from 140px */
+  background-image: radial-gradient(circle, rgba(97, 218, 251, 0.3) 1.5px, transparent 2px); /* Reduced dot size */
+  background-size: 15px 15px; /* Reduced from 20px */
   opacity: 0.6;
   z-index: 1;
   animation: rotateDots 20s linear infinite;
@@ -98,12 +98,12 @@
 .title-container::after {
   content: '';
   position: absolute;
-  bottom: -30px;
+  bottom: -20px;
   left: 20%;
-  width: 100px;
-  height: 100px;
-  background-image: radial-gradient(circle, rgba(187, 134, 252, 0.3) 2px, transparent 3px);
-  background-size: 15px 15px;
+  width: 80px; /* Reduced from 100px */
+  height: 80px; /* Reduced from 100px */
+  background-image: radial-gradient(circle, rgba(187, 134, 252, 0.3) 1.5px, transparent 2px); /* Reduced dot size */
+  background-size: 12px 12px; /* Reduced from 15px */
   opacity: 0.4;
   z-index: 1;
   animation: floatDots 15s ease-in-out infinite alternate;
@@ -131,18 +131,18 @@
 }
 
 .subtitle {
-  font-size: 1.1rem;
-  max-width: 600px;
-  margin: 0 auto 0.5rem;
+  font-size: 0.9rem; /* Reduced from 1.1rem */
+  max-width: 500px;
+  margin: 0 auto 0.3rem; /* Reduced from 0.5rem */
   color: rgba(255, 255, 255, 1); /* Full white for better visibility */
-  line-height: 1.4;
+  line-height: 1.3; /* Reduced from 1.4 */
   font-weight: 500; /* Slightly bolder */
   text-shadow: 0 1px 5px rgba(0, 0, 0, 0.7); /* Stronger shadow */
   pointer-events: auto;
   position: relative;
   z-index: 2;
-  padding-left: 5px;
-  border-left: 3px solid rgba(97, 218, 251, 0.7);
+  padding-left: 4px; /* Reduced from 5px */
+  border-left: 2px solid rgba(97, 218, 251, 0.7); /* Reduced from 3px */
   animation: subtitlePulse 3s ease-in-out infinite;
   display: inline-block;
 }
@@ -179,7 +179,7 @@
 }
 
 .line-1 {
-  top: 10px;
+  top: 8px; /* Reduced from 10px */
   left: 0;
   width: 100%;
   animation: lineMove1 8s ease-in-out infinite;
@@ -187,20 +187,20 @@
 }
 
 .line-2 {
-  bottom: 15px;
+  bottom: 8px; /* Reduced from 15px */
   right: 0;
-  width: 80%;
+  width: 90%; /* Increased from 80% to better fit smaller container */
   animation: lineMove2 12s ease-in-out infinite;
   opacity: 0.4;
 }
 
 .line-3 {
   top: 50%;
-  left: -10%;
-  width: 120%;
+  left: -5%; /* Changed from -10% */
+  width: 110%; /* Reduced from 120% */
   animation: lineMove3 15s ease-in-out infinite;
   opacity: 0.3;
-  transform: rotate(-1deg);
+  transform: rotate(-0.5deg); /* Reduced angle from -1deg */
 }
 
 @keyframes lineMove1 {
