@@ -1070,6 +1070,54 @@ function App() {
       gsap.to(sphere.rotation, { y: -Math.PI * 2, duration: 10, repeat: -1, ease: 'linear' });
       gsap.to(torus.rotation, { x: Math.PI * 2, duration: 8, repeat: -1, ease: 'linear' });
 
+      // Additional GSAP animations:
+
+      // For cube: color change (animating r, g, b properties of the THREE.Color object)
+      // This assumes cube.material.color is a THREE.Color object, which it is for MeshStandardMaterial
+      if (cube && cube.material && (cube.material as THREE.MeshStandardMaterial).color) {
+        gsap.to((cube.material as THREE.MeshStandardMaterial).color, {
+          r: 1, // Target red
+          g: 0.2, // A bit of green
+          b: 0.2, // A bit of blue -> resulting in a reddish hue
+          duration: 3,
+          repeat: -1,
+          yoyo: true,
+          ease: 'power1.inOut'
+        });
+      }
+
+      // For sphere: add rotation around X-axis to complement existing Y-axis rotation
+      if (sphere) {
+        gsap.to(sphere.rotation, {
+          x: Math.PI * 2,
+          duration: 12,
+          repeat: -1,
+          ease: 'linear',
+          delay: 0.5 // Stagger with Y rotation
+        });
+      }
+
+      // For torus: make its emissive property pulse
+      if (torus && torus.material instanceof THREE.MeshStandardMaterial) {
+        const torusStandardMaterial = torus.material as THREE.MeshStandardMaterial;
+        // Ensure emissive property exists and is a THREE.Color
+        if (!torusStandardMaterial.emissive) {
+          torusStandardMaterial.emissive = new THREE.Color(0x000000);
+        }
+        // Define a target emissive color (e.g., a fraction of its diffuse color)
+        const targetEmissiveColor = new THREE.Color(torusStandardMaterial.color).multiplyScalar(0.4);
+
+        gsap.to(torusStandardMaterial.emissive, {
+          r: targetEmissiveColor.r,
+          g: targetEmissiveColor.g,
+          b: targetEmissiveColor.b,
+          duration: 2.0,
+          repeat: -1,
+          yoyo: true,
+          ease: 'sine.inOut'
+        });
+      }
+
       socket.on('connect', () => {
         console.log('Connected to server with ID:', socket.id);
       });
