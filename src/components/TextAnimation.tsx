@@ -31,7 +31,7 @@ const TextAnimation: React.FC<TextAnimationProps> = ({
     text.split('').forEach((char, index) => {
       const span = document.createElement('span');
       span.textContent = char === ' ' ? '\u00A0' : char; // Replace space with non-breaking space
-      span.style.opacity = '0';
+      span.style.opacity = '1'; // Start visible
       span.style.display = 'inline-block';
       span.classList.add('text-anim-char');
       container.appendChild(span);
@@ -42,10 +42,15 @@ const TextAnimation: React.FC<TextAnimationProps> = ({
     // Get the characters directly instead of using a complex selector
     const chars = container.querySelectorAll('.text-anim-char');
 
+    // Set initial opacity to 1 to ensure text is visible even before animation
+    chars.forEach(char => {
+      (char as HTMLElement).style.opacity = '1';
+    });
+
     animate(chars, {
-      opacity: [0, 1],
-      translateY: [20, 0],
-      scale: [0.8, 1],
+      opacity: [0.5, 1], // Start from 0.5 instead of 0 for better visibility
+      translateY: [10, 0], // Less movement
+      scale: [0.9, 1], // Less scaling
       easing: 'easeOutExpo',
       duration: duration,
       delay: stagger(staggerValue, { start: delay }),
@@ -54,7 +59,7 @@ const TextAnimation: React.FC<TextAnimationProps> = ({
         chars.forEach(char => {
           char.addEventListener('mouseenter', () => {
             animate(char, {
-              scale: 1.4,
+              scale: 1.2,
               color: '#61dafb', // React blue color
               duration: 300,
               easing: 'easeOutElastic(1, .6)'

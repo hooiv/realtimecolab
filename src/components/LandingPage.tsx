@@ -37,6 +37,76 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
     initializeSocket();
   }, [initializeSocket]);
 
+  // Add title and subtitle animation effects
+  useEffect(() => {
+    // Animate the title
+    const title = document.querySelector('.static-title');
+    if (title) {
+      animate(title, {
+        opacity: [0, 1],
+        translateY: [-20, 0],
+        duration: 1200,
+        easing: 'easeOutExpo'
+      });
+
+      // Add a subtle hover effect to the title
+      title.addEventListener('mouseenter', () => {
+        animate(title, {
+          scale: 1.02,
+          textShadow: '0 0 15px rgba(97, 218, 251, 0.8)',
+          duration: 400,
+          easing: 'easeOutQuad'
+        });
+      });
+
+      title.addEventListener('mouseleave', () => {
+        animate(title, {
+          scale: 1,
+          textShadow: '0 2px 10px rgba(0, 0, 0, 0.5)',
+          duration: 400,
+          easing: 'easeOutQuad'
+        });
+      });
+    }
+
+    // Animate the subtitle
+    const subtitle = document.querySelector('.subtitle');
+    if (subtitle) {
+      animate(subtitle, {
+        opacity: [0, 1],
+        translateX: [-10, 0],
+        duration: 1200,
+        delay: 300, // Start after title animation begins
+        easing: 'easeOutExpo'
+      });
+
+      // Add a typing cursor effect
+      const cursor = document.createElement('span');
+      cursor.className = 'typing-cursor';
+      cursor.textContent = '|';
+      cursor.style.marginLeft = '2px';
+      cursor.style.opacity = '0';
+      subtitle.appendChild(cursor);
+
+      // Animate the cursor
+      animate(cursor, {
+        opacity: [0, 1],
+        duration: 300,
+        delay: 1500,
+        easing: 'easeOutExpo',
+        complete: () => {
+          // Blinking cursor animation
+          animate(cursor, {
+            opacity: [1, 0],
+            duration: 800,
+            easing: 'steps(1)',
+            loop: true
+          });
+        }
+      });
+    }
+  }, []);
+
   // Apply scroll animations
   useScrollAnimation(titleRef, {
     animation: {
@@ -160,15 +230,40 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
         boxShadow: ['0 2px 5px rgba(0,0,0,0.2)', '0 6px 15px rgba(0,0,0,0.3)', '0 2px 5px rgba(0,0,0,0.2)'],
         duration: 600,
         easing: 'easeInOutQuad',
-        complete: async () => {
-          await mockLogin(guestUsername);
+        complete: () => {
+          console.log('Guest login button animation complete, proceeding with login');
 
-          if (pageRef.current) {
-            await animateExit(pageRef.current);
-            onEnterApp();
-          }
+          // Call mockLogin to create a guest user
+          mockLogin(guestUsername);
+
+          console.log('Mock login completed, user should be authenticated now');
+
+          // Add a small delay to ensure state updates before transition
+          setTimeout(() => {
+            console.log('Starting page exit animation');
+            if (pageRef.current) {
+              // Simple fade out animation instead of using animateExit
+              animate(pageRef.current, {
+                opacity: [1, 0],
+                translateY: [0, -10],
+                duration: 600,
+                easing: 'easeOutQuad',
+                complete: () => {
+                  console.log('Exit animation complete, entering app');
+                  onEnterApp();
+                }
+              });
+            } else {
+              console.log('pageRef not available, entering app directly');
+              onEnterApp();
+            }
+          }, 300);
         }
       });
+    } else {
+      console.log('Guest button not found, proceeding with direct login');
+      mockLogin(guestUsername);
+      setTimeout(() => onEnterApp(), 300);
     }
   };
 
@@ -182,12 +277,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
       {/* Header section with animated title - positioned absolutely */}
       <div ref={headerRef} className="header-container">
         <div className="title-container">
-          <TextAnimation
-            text="Real-Time Collaboration Tool"
-            className="main-title"
-            duration={1200}
-            staggerValue={50}
-          />
+          {/* Animated lines */}
+          <div className="animated-line line-1"></div>
+          <div className="animated-line line-2"></div>
+          <div className="animated-line line-3"></div>
+
+          {/* Static title that's always visible */}
+          <h1 className="static-title">Real-Time Collaboration Tool</h1>
           <p ref={subtitleRef} className="subtitle">
             Create, collaborate, and visualize together in real-time
           </p>

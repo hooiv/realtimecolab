@@ -40,13 +40,19 @@ const LoadingAnimation: React.FC<LoadingAnimationProps> = ({
           animationContainer.appendChild(dot);
         }
 
-        animate(`${container.id} .loading-dot`, {
-          translateY: [0, -15, 0],
-          duration: 1200,
-          delay: stagger(180),
-          loop: true,
-          easing: 'easeInOutSine'
-        });
+        // Wait for DOM to update before animating
+        setTimeout(() => {
+          const dots = container.querySelectorAll('.loading-dot');
+          if (dots && dots.length > 0) {
+            animate(dots, {
+              translateY: [0, -15, 0],
+              duration: 1200,
+              delay: stagger(180),
+              loop: true,
+              easing: 'easeInOutSine'
+            });
+          }
+        }, 0);
         break;
 
       case 'bars':
@@ -57,17 +63,22 @@ const LoadingAnimation: React.FC<LoadingAnimationProps> = ({
           animationContainer.appendChild(bar);
         }
 
-        animate(`${container.id} .loading-bar`, {
-          height: (el: Element, i: number) => [
-            5,
-            20 + (i * 5),
-            5
-          ],
-          duration: 1000,
-          delay: stagger(120),
-          loop: true,
-          easing: 'easeInOutQuad'
-        });
+        setTimeout(() => {
+          const bars = container.querySelectorAll('.loading-bar');
+          if (bars && bars.length > 0) {
+            animate(bars, {
+              height: (_el: Element, i: number) => [
+                5,
+                20 + (i * 5),
+                5
+              ],
+              duration: 1000,
+              delay: stagger(120),
+              loop: true,
+              easing: 'easeInOutQuad'
+            });
+          }
+        }, 0);
         break;
 
       case 'spinner':
@@ -77,12 +88,17 @@ const LoadingAnimation: React.FC<LoadingAnimationProps> = ({
         spinnerRing.style.borderTopColor = color;
         animationContainer.appendChild(spinnerRing);
 
-        animate(`${container.id} .spinner-ring`, {
-          rotate: 360,
-          duration: 1200,
-          loop: true,
-          easing: 'linear'
-        });
+        setTimeout(() => {
+          const spinner = container.querySelector('.spinner-ring');
+          if (spinner) {
+            animate(spinner, {
+              rotate: 360,
+              duration: 1200,
+              loop: true,
+              easing: 'linear'
+            });
+          }
+        }, 0);
         break;
 
       case 'boxes':
@@ -93,17 +109,22 @@ const LoadingAnimation: React.FC<LoadingAnimationProps> = ({
           animationContainer.appendChild(box);
         }
 
-        animate(`${container.id} .loading-box`, {
-          scale: [
-            {value: 1, duration: 0, delay: 0},
-            {value: 0, duration: 500, delay: stagger(200)},
-            {value: 1, duration: 500, delay: 0}
-          ],
-          rotate: stagger([0, 90, 180, 270]),
-          loop: true,
-          easing: 'easeInOutSine',
-          delay: stagger(200)
-        });
+        setTimeout(() => {
+          const boxes = container.querySelectorAll('.loading-box');
+          if (boxes && boxes.length > 0) {
+            animate(boxes, {
+              scale: [
+                {value: 1, duration: 0, delay: 0},
+                {value: 0, duration: 500, delay: stagger(200)},
+                {value: 1, duration: 500, delay: 0}
+              ],
+              rotate: stagger([0, 90, 180, 270]),
+              loop: true,
+              easing: 'easeInOutSine',
+              delay: stagger(200)
+            });
+          }
+        }, 0);
         break;
 
       case 'pulse':
@@ -112,19 +133,32 @@ const LoadingAnimation: React.FC<LoadingAnimationProps> = ({
         circle.style.borderColor = color;
         animationContainer.appendChild(circle);
 
-        animate(`${container.id} .pulse-circle`, {
-          scale: [1, 1.5],
-          opacity: [0.8, 0],
-          duration: 1200,
-          loop: true,
-          easing: 'easeInOutQuad'
-        });
+        setTimeout(() => {
+          const pulseCircle = container.querySelector('.pulse-circle');
+          if (pulseCircle) {
+            animate(pulseCircle, {
+              scale: [1, 1.5],
+              opacity: [0.8, 0],
+              duration: 1200,
+              loop: true,
+              easing: 'easeInOutQuad'
+            });
+          }
+        }, 0);
         break;
     }
 
     // Cleanup function
     return () => {
-      utils.remove(`${container.id} *`);
+      try {
+        // Try to remove animations more safely
+        const elements = container.querySelectorAll('.loading-dot, .loading-bar, .spinner-ring, .loading-box, .pulse-circle');
+        if (elements.length > 0) {
+          utils.remove(elements);
+        }
+      } catch (error) {
+        console.log('Animation cleanup error:', error);
+      }
     };
   }, [type, color]);
 
