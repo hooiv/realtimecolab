@@ -1,20 +1,20 @@
 .auth-form-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  background: linear-gradient(135deg, #3498db, #8e44ad);
-  background-size: cover;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .auth-form-box {
-  width: 400px;
-  padding: 2rem;
-  background-color: rgba(255, 255, 255, 0.9);
+  width: 100%;
+  padding: 1rem;
+  background-color: rgba(40, 44, 52, 0.8); /* Darker background to match theme */
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(10px);
   animation: fadeIn 0.5s ease-out;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 @keyframes fadeIn {
@@ -23,93 +23,188 @@
 }
 
 .auth-form-box h2 {
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.75rem;
   text-align: center;
-  color: #333;
-  font-size: 2rem;
+  color: white;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 .form-group {
-  margin-bottom: 1.2rem;
+  margin-bottom: 0.75rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
   font-weight: 500;
-  color: #444;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.85rem;
 }
 
-.form-group input {
+/* Input with icon styling */
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
   width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.input-with-icon i {
+  position: absolute;
+  left: 12px;
   font-size: 1rem;
-  transition: border-color 0.3s;
+  color: rgba(255, 255, 255, 0.6);
+  z-index: 1;
+  pointer-events: none;
 }
 
-.form-group input:focus {
+.input-with-icon input {
+  width: 100%;
+  padding: 0.5rem 0.5rem 0.5rem 2rem;
+  background-color: rgba(30, 34, 42, 0.7); /* Darker background to match theme */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: white;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.input-with-icon input:focus {
   outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  border-color: #61dafb;
+  box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.2);
+  background-color: rgba(40, 44, 52, 0.9); /* Darker background to match theme */
 }
 
-.form-group input[type="color"] {
+.input-with-icon input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Color input styling */
+.color-input-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.color-input-container input[type="color"] {
+  width: 50px;
   height: 40px;
   padding: 0;
+  border: none;
+  border-radius: 8px;
   cursor: pointer;
+  background: none;
 }
 
+.color-preview {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Submit button styling */
 .auth-submit-btn {
   width: 100%;
-  padding: 0.8rem;
-  margin-top: 1rem;
-  background-color: #3498db;
+  padding: 0.6rem;
+  margin-top: 0.75rem;
+  background: linear-gradient(90deg, #4facfe, #00f2fe);
   color: white;
   border: none;
-  border-radius: 6px;
-  font-size: 1.1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-submit-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.7s ease;
 }
 
 .auth-submit-btn:hover {
-  background-color: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+}
+
+.auth-submit-btn:hover::before {
+  left: 100%;
+}
+
+.auth-submit-btn:active {
+  transform: translateY(1px);
 }
 
 .auth-submit-btn:disabled {
-  background-color: #95a5a6;
+  background: linear-gradient(90deg, #95a5a6, #7f8c8d);
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
+.btn-icon {
+  font-size: 1.2rem;
+}
+
+.btn-text {
+  font-weight: 600;
+}
+
+/* Switch between login and register */
 .auth-switch {
-  margin-top: 1.5rem;
+  margin-top: 0.75rem;
   text-align: center;
 }
 
 .auth-switch p {
-  color: #3498db;
+  color: #61dafb;
   font-weight: 500;
   cursor: pointer;
-  transition: color 0.3s;
+  transition: all 0.3s ease;
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
 }
 
 .auth-switch p:hover {
-  color: #2980b9;
-  text-decoration: underline;
+  color: white;
+  background-color: rgba(97, 218, 251, 0.1);
+  transform: translateY(-2px);
 }
 
+/* Error message styling */
 .auth-error {
-  background-color: #ff6b6b;
-  color: white;
+  background-color: rgba(255, 107, 107, 0.2);
+  color: #ff6b6b;
   padding: 0.8rem;
   margin-bottom: 1.5rem;
-  border-radius: 6px;
+  border-radius: 8px;
   text-align: center;
   font-weight: 500;
   animation: shake 0.5s linear;
+  border: 1px solid rgba(255, 107, 107, 0.3);
 }
 
 @keyframes shake {
@@ -118,6 +213,7 @@
   20%, 40%, 60%, 80% { transform: translateX(5px); }
 }
 
+/* Loading spinner (fallback) */
 .loading-spinner {
   display: inline-block;
   width: 20px;
@@ -130,4 +226,26 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* Form styling */
+form {
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .auth-form-box {
+    padding: 1.25rem;
+  }
+
+  .form-group {
+    margin-bottom: 1.25rem;
+  }
+
+  .auth-submit-btn {
+    padding: 0.8rem;
+  }
 }

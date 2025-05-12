@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { animate } from 'animejs';
+import LoadingAnimation from './LoadingAnimation';
 import './AuthForm.css';
 
 interface AuthFormProps {
@@ -82,61 +83,80 @@ const AuthForm: React.FC<AuthFormProps> = ({ onLogin, onRegister, isLoading, err
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="username">Username</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
+            <div className="input-with-icon">
+              <i className="user-icon">👤</i>
+              <input
+                type="text"
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter your username"
+                required
+              />
+            </div>
           </div>
 
           {!isLoginMode && (
             <>
               <div className="form-group">
                 <label htmlFor="email">Email</label>
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
+                <div className="input-with-icon">
+                  <i className="email-icon">✉️</i>
+                  <input
+                    type="email"
+                    id="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    required
+                  />
+                </div>
               </div>
 
               <div className="form-group">
                 <label htmlFor="avatar-color">Avatar Color</label>
-                <input
-                  type="color"
-                  id="avatar-color"
-                  value={avatarColor}
-                  onChange={(e) => setAvatarColor(e.target.value)}
-                />
+                <div className="color-input-container">
+                  <input
+                    type="color"
+                    id="avatar-color"
+                    value={avatarColor}
+                    onChange={(e) => setAvatarColor(e.target.value)}
+                  />
+                  <span className="color-preview" style={{ backgroundColor: avatarColor }}></span>
+                </div>
               </div>
             </>
           )}
 
           <div className="form-group">
             <label htmlFor="password">Password</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div className="input-with-icon">
+              <i className="password-icon">🔒</i>
+              <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                required
+              />
+            </div>
           </div>
 
           {!isLoginMode && (
             <div className="form-group">
               <label htmlFor="confirm-password">Confirm Password</label>
-              <input
-                type="password"
-                id="confirm-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
+              <div className="input-with-icon">
+                <i className="password-icon">🔒</i>
+                <input
+                  type="password"
+                  id="confirm-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm your password"
+                  required
+                />
+              </div>
             </div>
           )}
 
@@ -149,9 +169,12 @@ const AuthForm: React.FC<AuthFormProps> = ({ onLogin, onRegister, isLoading, err
             onMouseLeave={resetButton}
           >
             {isLoading ? (
-              <span className="loading-spinner"></span>
+              <LoadingAnimation type="dots" size="small" color="#ffffff" />
             ) : (
-              isLoginMode ? 'Login' : 'Register'
+              <>
+                <span className="btn-icon">{isLoginMode ? '🚀' : '✨'}</span>
+                <span className="btn-text">{isLoginMode ? 'Login' : 'Register'}</span>
+              </>
             )}
           </button>
         </form>

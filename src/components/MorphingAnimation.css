@@ -8,11 +8,42 @@
   min-height: 150px;
 }
 
-.morphing-animation-container svg {
+.morphing-svg {
   width: 100%;
   height: 100%;
   max-width: 150px;
   max-height: 150px;
+}
+
+/* Add transitions for smooth morphing */
+.morphing-shape {
+  transition: all 0.8s ease-in-out;
+}
+
+.morphing-shape circle,
+.morphing-shape rect,
+.morphing-shape polygon {
+  opacity: 0;
+  animation: fadeIn 0.5s forwards;
+  transform-origin: center;
+  transition: all 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.9; }
+}
+
+/* Add a subtle pulse animation */
+.morphing-shape circle,
+.morphing-shape rect,
+.morphing-shape polygon {
+  animation: pulse 3s infinite ease-in-out;
 }
 
 /* Responsive adjustments */
@@ -20,8 +51,8 @@
   .morphing-animation-container {
     min-height: 120px;
   }
-  
-  .morphing-animation-container svg {
+
+  .morphing-svg {
     max-width: 120px;
     max-height: 120px;
   }

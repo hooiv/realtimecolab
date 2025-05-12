@@ -5,6 +5,10 @@ import AnimatedBackground from './AnimatedBackground';
 import ParticlesAnimation from './ParticlesAnimation';
 import TextAnimation from './TextAnimation';
 import AnimatedShapes from './AnimatedShapes';
+import AnimatedButton from './AnimatedButton';
+import MorphingAnimation from './MorphingAnimation';
+import { WaveAnimation } from './WaveAnimation';
+import LoadingAnimation from './LoadingAnimation';
 import { useScrollAnimation } from '../hooks/useScrollAnimation';
 import { usePageTransition } from '../hooks/usePageTransition';
 import { animate } from 'animejs';
@@ -170,31 +174,87 @@ const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
 
   return (
     <div ref={pageRef} className="landing-page">
-      <div ref={headerRef} className="header-container">
-        <h1 ref={titleRef} className="main-title">Real-Time Collaboration Tool</h1>
-        <p ref={subtitleRef} className="subtitle">
-          Create, collaborate, and visualize together in real-time
-        </p>
-      </div>
-
+      {/* Background elements */}
       <AnimatedBackground id={backgroundId.current} />
       <ParticlesAnimation id={particlesId.current} />
+      <WaveAnimation color="#4facfe" height={200} speed={3000} amplitude={15} />
 
-      <div ref={authSectionRef} className="auth-section">
-        <AnimatedShapes id={shapesId.current} />
-        <TextAnimation text="Welcome" />
-        <div className="auth-container">
-          <AuthForm
-            onLogin={handleLogin}
-            onRegister={handleRegister}
-            isLoading={authState.loading}
-            error={error}
+      {/* Header section with animated title - positioned absolutely */}
+      <div ref={headerRef} className="header-container">
+        <div className="title-container">
+          <TextAnimation
+            text="Real-Time Collaboration Tool"
+            className="main-title"
+            duration={1200}
+            staggerValue={50}
           />
-          <button className="guest-button" onClick={handleGuestEntry}>
-            Continue as Guest
-          </button>
+          <p ref={subtitleRef} className="subtitle">
+            Create, collaborate, and visualize together in real-time
+          </p>
         </div>
       </div>
+
+      {/* Main content section */}
+      <div ref={authSectionRef} className="auth-section">
+        <AnimatedShapes id={shapesId.current} />
+
+        <div className="auth-container">
+          <div className="auth-card">
+            <TextAnimation
+              text="Welcome"
+              className="welcome-text"
+              duration={800}
+              staggerValue={30}
+            />
+
+            <AuthForm
+              onLogin={handleLogin}
+              onRegister={handleRegister}
+              isLoading={authState.loading}
+              error={error}
+            />
+
+            <div className="guest-login-container">
+              <AnimatedButton
+                onClick={handleGuestEntry}
+                animationStyle="bounce"
+                className="guest-button"
+                size="medium"
+              >
+                Continue as Guest
+              </AnimatedButton>
+            </div>
+          </div>
+
+          {/* Feature highlights - simplified for compact layout */}
+          <div className="feature-highlights">
+            <div className="feature">
+              <h3>Real-time Updates</h3>
+              <p>See changes as they happen</p>
+            </div>
+
+            <div className="feature">
+              <h3>Secure Collaboration</h3>
+              <p>Work together safely</p>
+            </div>
+
+            <div className="feature">
+              <h3>Interactive Visualization</h3>
+              <p>Bring your ideas to life</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="landing-footer">
+        <p>© 2023 Real-Time Collaboration Tool</p>
+        <div className="footer-links">
+          <a href="#">Terms of Service</a>
+          <a href="#">Privacy Policy</a>
+          <a href="#">Help</a>
+        </div>
+      </footer>
     </div>
   );
 };

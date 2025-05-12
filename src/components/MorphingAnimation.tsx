@@ -1,6 +1,4 @@
-import React, { useEffect, useRef } from 'react';
-import { animate, createTimeline, utils } from 'animejs';
-import type { AnimeParams } from 'animejs';
+import React, { useEffect, useRef, useState } from 'react';
 import './MorphingAnimation.css';
 
 interface MorphingAnimationProps {
@@ -12,6 +10,7 @@ interface MorphingAnimationProps {
   autoPlay?: boolean;
 }
 
+// Completely rewritten component to avoid SVG path animation issues
 const MorphingAnimation: React.FC<MorphingAnimationProps> = ({
   id,
   className = '',
@@ -20,100 +19,52 @@ const MorphingAnimation: React.FC<MorphingAnimationProps> = ({
   duration = 3000,
   autoPlay = true
 }) => {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const animationRef = useRef<any>(null);
+  const [currentShape, setCurrentShape] = useState<number>(0);
+  const intervalRef = useRef<number | null>(null);
+
+  // Define simple shapes that don't use complex SVG path data
+  const shapes = [
+    // Circle
+    <circle key="circle" cx="50" cy="50" r="40" fill="none" stroke={color} strokeWidth={strokeWidth} />,
+    // Square
+    <rect key="square" x="10" y="10" width="80" height="80" fill="none" stroke={color} strokeWidth={strokeWidth} />,
+    // Triangle
+    <polygon key="triangle" points="50,10 90,90 10,90" fill="none" stroke={color} strokeWidth={strokeWidth} />,
+    // Diamond
+    <polygon key="diamond" points="50,10 90,50 50,90 10,50" fill="none" stroke={color} strokeWidth={strokeWidth} />,
+    // Hexagon
+    <polygon key="hexagon" points="30,10 70,10 90,50 70,90 30,90 10,50" fill="none" stroke={color} strokeWidth={strokeWidth} />
+  ];
 
   useEffect(() => {
-    if (!svgRef.current) return;
+    if (autoPlay) {
+      // Use setInterval instead of anime.js for shape transitions
+      intervalRef.current = window.setInterval(() => {
+        setCurrentShape(prev => (prev + 1) % shapes.length);
+      }, duration);
+    }
 
-    // Define different path shapes for morphing
-    const shapes = {
-      circle: 'M 50,50 m -40,0 a 40,40 0 1 1 80,0 a 40,40 0 1 1 -80,0',
-      square: 'M 10,10 L 90,10 L 90,90 L 10,90 L 10,10',
-      triangle: 'M 50,10 L 90,90 L 10,90 Z',
-      star: 'M 50,10 L 61,40 L 93,42 L 67,63 L 76,94 L 50,79 L 24,94 L 33,63 L 7,42 L 39,40 Z',
-      infinity: 'M 50,50 m -30,0 a 20,20 0 1 0 40,0 a 17,17 0 1 0 -40,0 M 50,50 m -10,0 a 20,20 0 1 1 40,0 a 17,17 0 1 1 -40,0'
-    };
-
-    const path = svgRef.current.querySelector('path');
-    if (!path) return;
-
-    const keys = Object.keys(shapes);
-    const morphSequence: AnimeParams[] = [];
-
-    // Create morphing sequence
-    keys.forEach((key, index) => {
-      const nextKey = keys[(index + 1) % keys.length];
-      morphSequence.push({
-        targets: path,
-        d: [shapes[key as keyof typeof shapes], shapes[nextKey as keyof typeof shapes]],
-        duration: duration,
-        easing: 'easeInOutQuad',
-        delay: 200,
-        endDelay: 300
-      });
-    });
-
-    // Create animation timeline
-    const timeline = createTimeline({
-      loop: true,
-      autoplay: autoPlay
-    });
-
-    // Add morphing animations to timeline
-    morphSequence.forEach(params => {
-      // In anime.js v4, we need to create individual animations for each path
-      if (params.targets) {
-        // Extract the path element from params.targets
-        const path = params.targets as SVGPathElement;
-
-        // Create animation parameters without the targets
-        const { targets, ...animParams } = params;
-
-        // Add the animation to the timeline
-        timeline.add(path, animParams);
-      }
-    });
-
-    animationRef.current = timeline;
-
-    // Add additional subtle animations
-    animate(path, {
-      strokeWidth: [strokeWidth, strokeWidth + 1, strokeWidth],
-      opacity: [0.7, 1, 0.7],
-      duration: 3000,
-      easing: 'easeInOutSine',
-      direction: 'alternate',
-      loop: true
-    });
-
-    // Cleanup function
     return () => {
-      if (animationRef.current) {
-        animationRef.current.pause();
-      }
-      if (path) {
-        utils.remove(path);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
       }
     };
-  }, [color, strokeWidth, duration, autoPlay]);
+  }, [autoPlay, duration, shapes.length]);
 
   return (
     <div className={`morphing-animation-container ${className}`}>
       <svg
-        ref={svgRef}
         id={id}
         width="100%"
         height="100%"
         viewBox="0 0 100 100"
         preserveAspectRatio="xMidYMid meet"
+        className="morphing-svg"
       >
-        <path
-          fill="none"
-          stroke={color}
-          strokeWidth={strokeWidth}
-          d="M 50,50 m -40,0 a 40,40 0 1 1 80,0 a 40,40 0 1 1 -80,0"
-        />
+        {/* Apply CSS transition for smooth morphing */}
+        <g className="morphing-shape">
+          {shapes[currentShape]}
+        </g>
       </svg>
     </div>
   );
