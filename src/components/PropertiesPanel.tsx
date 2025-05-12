@@ -4,8 +4,6 @@ import { Socket } from 'socket.io-client';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { 
-  Command, 
-  UpdateTaskPropertyCommandData, 
   ActivityLogEntry, 
   ChecklistItem, 
   ChecklistUpdateAction,
@@ -15,7 +13,11 @@ import type {
 interface PropertiesPanelProps {
   selectedObject: THREE.Mesh | null;
   socket: Socket | null;
-  recordCommand: (command: Command<UpdateTaskPropertyCommandData>) => void;
+  onPropertyUpdate: (
+    property: 'taskTitle' | 'taskDescription' | 'taskChecklistUpdate',
+    value: string | ChecklistUpdateAction,
+    oldValue: string | ChecklistItem[]
+  ) => void;
 }
 
 interface ScaleState {
@@ -24,7 +26,7 @@ interface ScaleState {
   z: number;
 }
 
-const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socket, recordCommand }) => {
+const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socket, onPropertyUpdate }) => {
   const [objectColor, setObjectColor] = useState('#ffffff');
   const [objectScale, setObjectScale] = useState<ScaleState>({ x: 1, y: 1, z: 1 });
   const [taskTitle, setTaskTitle] = useState('');
@@ -36,6 +38,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
   const [activityLog, setActivityLog] = useState<ActivityLogEntry[]>([]);
 
   useEffect(() => {
+    console.log('[PropertiesPanel useEffect] Selected object changed:', selectedObject?.userData?.sharedId);
     if (selectedObject) {
       if (selectedObject.material instanceof THREE.MeshStandardMaterial) {
         setObjectColor('#' + selectedObject.material.color.getHexString());
@@ -44,12 +47,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
 
       if (selectedObject.userData.taskData) {
         const taskData = selectedObject.userData.taskData as AppTaskData;
+        console.log('[PropertiesPanel useEffect] TaskData FOUND for', selectedObject.userData.sharedId, JSON.stringify(taskData));
         setTaskTitle(taskData.title || '');
         setTaskStatus(taskData.status || 'To Do');
         setTaskDescription(taskData.description || '');
-        setChecklist(taskData.checklist || []);
-        setActivityLog(taskData.activityLog || []);
+        setChecklist(taskData.checklist ? JSON.parse(JSON.stringify(taskData.checklist)) : []); // Deep copy for local state
+        setActivityLog(taskData.activityLog ? JSON.parse(JSON.stringify(taskData.activityLog)) : []); // Deep copy for local state
       } else {
+        console.log('[PropertiesPanel useEffect] No TaskData for', selectedObject.userData.sharedId);
         setTaskTitle(selectedObject.userData.sharedId || 'Task');
         setTaskStatus('To Do');
         setTaskDescription('');
@@ -57,6 +62,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
         setActivityLog([]);
       }
     } else {
+      console.log('[PropertiesPanel useEffect] Selected object is NULL');
       setObjectColor('#ffffff');
       setObjectScale({ x: 1, y: 1, z: 1 });
       setTaskTitle('');
@@ -105,34 +111,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
     });
   };
 
-  const createTaskPropertyUpdateCommand = useCallback((property: 'taskTitle' | 'taskDescription' | 'taskChecklistUpdate', value: string | ChecklistUpdateAction, oldValue: string | ChecklistItem[]) => {
-    if (!selectedObject || !socket?.id) return null;
-
-    const commandData: UpdateTaskPropertyCommandData = {
-      objectId: selectedObject.userData.sharedId,
-      property,
-      value,
-      oldValue,
-      userId: socket.id,
-    };
-
-    return {
-      description: `Update task ${property}`,
-      actionType: 'updateTaskProperty',
-      actionData: commandData,
-      execute: () => {}, 
-      undo: () => {}
-    };
-  }, [selectedObject, socket]);
-
   const handleTaskTitleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = event.target.value;
-    const oldTitle = selectedObject?.userData?.taskData?.title || '';
-    setTaskTitle(newTitle);
+    setTaskTitle(newTitle); // Update local state immediately for responsiveness
 
-    const command = createTaskPropertyUpdateCommand('taskTitle', newTitle, oldTitle);
-    if (command) {
-      recordCommand(command as Command<UpdateTaskPropertyCommandData>);
+    if (selectedObject) {
+      const oldTitle = selectedObject.userData.taskData?.title || '';
+      console.log(`[PropertiesPanel handleTaskTitleChange] Old: "${oldTitle}", New: "${newTitle}"`);
+      onPropertyUpdate('taskTitle', newTitle, oldTitle);
     }
   };
 
@@ -163,20 +149,21 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
 
   const handleTaskDescriptionChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newDescription = event.target.value;
-    const oldDescription = selectedObject?.userData?.taskData?.description || '';
-    setTaskDescription(newDescription);
+    setTaskDescription(newDescription); // Update local state immediately for responsiveness
 
-    const command = createTaskPropertyUpdateCommand('taskDescription', newDescription, oldDescription);
-    if (command) {
-      recordCommand(command as Command<UpdateTaskPropertyCommandData>);
+    if (selectedObject) {
+      const oldDescription = selectedObject.userData.taskData?.description || '';
+      onPropertyUpdate('taskDescription', newDescription, oldDescription);
     }
   };
 
   const handleChecklistAction = useCallback((checklistAction: ChecklistUpdateAction) => {
     if (!selectedObject || !socket?.id) return;
 
-    const oldChecklist = [...checklist];
-
+    const oldChecklist = selectedObject.userData.taskData?.checklist 
+      ? JSON.parse(JSON.stringify(selectedObject.userData.taskData.checklist)) 
+      : [];
+    
     let updatedChecklist = [...checklist];
     if (checklistAction.action === 'add' && checklistAction.item) {
       updatedChecklist.push(checklistAction.item);
@@ -191,13 +178,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
         item.id === checklistAction.itemId ? { ...item, text: checklistAction.newText! } : item
       );
     }
-    setChecklist(updatedChecklist);
+    setChecklist(updatedChecklist); // Optimistically update local state
 
-    const command = createTaskPropertyUpdateCommand('taskChecklistUpdate', checklistAction, oldChecklist);
-    if (command) {
-      recordCommand(command as Command<UpdateTaskPropertyCommandData>);
-    }
-  }, [selectedObject, socket, checklist, createTaskPropertyUpdateCommand, recordCommand]);
+    onPropertyUpdate('taskChecklistUpdate', checklistAction, oldChecklist);
+
+  }, [selectedObject, socket, checklist, onPropertyUpdate]);
 
   const handleAddChecklistItem = () => {
     if (newChecklistItemText.trim() === '') return;

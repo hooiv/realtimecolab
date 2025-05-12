@@ -63,12 +63,13 @@ interface CursorUpdateData {
   position: { x: number; y: number; z: number };
 }
 
+// Updated Command interface to support imperative commands
 export interface Command<T = any> {
   description: string;
+  actionType: string;
+  actionData: T;
   execute(): void;
   undo(): void;
-  actionType?: string; // Optional: for specific command types like 'updateTaskProperty'
-  actionData?: T;      // Optional: data associated with the action
 }
 
 interface MoveObjectCommandData {
@@ -237,138 +238,193 @@ class MoveObjectCommandImpl implements Command<MoveObjectCommandData> {
 }
 
 class UpdateTaskPropertyCommandImpl implements Command<UpdateTaskPropertyCommandData> {
+  public actionType = 'updateTaskProperty';
+  public targetObjectId: string;
+  public description: string;
+  public actionData: UpdateTaskPropertyCommandData;
+
   private interactiveObjectsRef: React.MutableRefObject<THREE.Mesh[]>;
   private socket: Socket;
-  public commandData: UpdateTaskPropertyCommandData;
-  public description: string;
-  private previousActivityLogLength: number | undefined;
-  public actionType?: string;
-  public actionData?: UpdateTaskPropertyCommandData;
+
+  private oldValue: string | ChecklistItem[] | undefined;
 
   constructor(
     interactiveObjectsRef: React.MutableRefObject<THREE.Mesh[]>,
     socket: Socket,
-    commandData: UpdateTaskPropertyCommandData,
+    actionData: UpdateTaskPropertyCommandData,
     description: string
   ) {
     this.interactiveObjectsRef = interactiveObjectsRef;
     this.socket = socket;
-    this.commandData = commandData;
+    this.actionData = actionData;
     this.description = description;
-    this.actionType = 'updateTaskProperty'; // Specific type for this command
-    this.actionData = commandData;          // Store command data for potential use
+    this.targetObjectId = actionData.objectId;
   }
 
   execute(): void {
-    const object = this.interactiveObjectsRef.current.find(obj => obj.userData.sharedId === this.commandData.objectId);
-    if (object && object.userData.taskData) {
-      const taskData = object.userData.taskData as TaskData;
-      let logEntryDetails = '';
-      let actionDescription = '';
-
-      this.previousActivityLogLength = taskData.activityLog?.length ?? 0;
-
-      if (this.commandData.property === 'taskTitle') {
-        taskData.title = this.commandData.value as string;
-        actionDescription = 'Task title updated';
-        logEntryDetails = `Title changed from "${this.commandData.oldValue}" to "${this.commandData.value}"`;
-      } else if (this.commandData.property === 'taskDescription') {
-        taskData.description = this.commandData.value as string;
-        actionDescription = 'Task description updated';
-        logEntryDetails = `Description updated.`; // Could be more detailed if oldValue for description was also stored
-      } else if (this.commandData.property === 'taskChecklistUpdate') {
-        const checklistUpdate = this.commandData.value as ChecklistUpdateAction;
-        const oldChecklist = this.commandData.oldValue as ChecklistItem[];
-        actionDescription = 'Task checklist updated';
-
-        if (checklistUpdate.action === 'add' && checklistUpdate.item) {
-          taskData.checklist.push(checklistUpdate.item);
-          logEntryDetails = `Added checklist item: "${checklistUpdate.item.text}"`;
-        } else if (checklistUpdate.action === 'remove' && checklistUpdate.itemId) {
-          const itemToRemove = oldChecklist.find(item => item.id === checklistUpdate.itemId);
-          taskData.checklist = taskData.checklist.filter(item => item.id !== checklistUpdate.itemId);
-          logEntryDetails = `Removed checklist item: "${itemToRemove?.text || checklistUpdate.itemId}"`;
-        } else if (checklistUpdate.action === 'toggle' && checklistUpdate.itemId) {
-          const itemToToggle = taskData.checklist.find(item => item.id === checklistUpdate.itemId);
-          if (itemToToggle) {
-            itemToToggle.completed = checklistUpdate.completed!;
-            logEntryDetails = `Checklist item "${itemToToggle.text}" marked as ${itemToToggle.completed ? 'complete' : 'incomplete'}`;
-          }
-        } else if (checklistUpdate.action === 'editText' && checklistUpdate.itemId && checklistUpdate.newText !== undefined) {
-          const itemToEdit = taskData.checklist.find(item => item.id === checklistUpdate.itemId);
-          const originalText = oldChecklist.find(item => item.id === checklistUpdate.itemId)?.text;
-          if (itemToEdit) {
-            itemToEdit.text = checklistUpdate.newText;
-            logEntryDetails = `Edited checklist item from "${originalText || 'previous text'}" to "${checklistUpdate.newText}"`;
-          }
-        }
-      }
-
-      const activityLogEntry: ActivityLogEntry = {
-        timestamp: new Date().toISOString(),
-        userId: this.commandData.userId,
-        action: actionDescription,
-        details: logEntryDetails,
-      };
-      if (!taskData.activityLog) taskData.activityLog = [];
-      taskData.activityLog.push(activityLogEntry);
-
-      this.socket.emit('object-property-updated', {
-        objectId: this.commandData.objectId,
-        property: this.commandData.property,
-        value: this.commandData.value, // Send the new value or the checklist action
-        userId: this.commandData.userId,
-        activityLogEntry: activityLogEntry, // Send the specific log entry
-      });
+    const object = this.interactiveObjectsRef.current.find(obj => obj.userData.sharedId === this.actionData.objectId);
+    if (!object) {
+      console.error(`[UpdateTaskPropertyCommandImpl EXECUTE] Object not found: ${this.actionData.objectId}`);
+      return;
     }
+    const taskData = object.userData.taskData;
+    if (!taskData) {
+      console.error(`[UpdateTaskPropertyCommandImpl EXECUTE] No taskData for object: ${this.actionData.objectId}`);
+      return;
+    }
+    // Store old value for undo
+    if (this.actionData.property === 'taskTitle') {
+      this.oldValue = taskData.title;
+      taskData.title = this.actionData.value as string;
+    } else if (this.actionData.property === 'taskDescription') {
+      this.oldValue = taskData.description;
+      taskData.description = this.actionData.value as string;
+    } else if (this.actionData.property === 'taskChecklistUpdate') {
+      this.oldValue = [...taskData.checklist];
+      const checklistAction = this.actionData.value as ChecklistUpdateAction;
+      if (checklistAction.action === 'add' && checklistAction.item) {
+        taskData.checklist.push(checklistAction.item);
+      } else if (checklistAction.action === 'remove' && checklistAction.itemId) {
+        taskData.checklist = taskData.checklist.filter((item: ChecklistItem) => item.id !== checklistAction.itemId);
+      } else if (checklistAction.action === 'toggle' && checklistAction.itemId) {
+        taskData.checklist = taskData.checklist.map((item: ChecklistItem) =>
+          item.id === checklistAction.itemId ? { ...item, completed: !item.completed } : item
+        );
+      } else if (checklistAction.action === 'editText' && checklistAction.itemId && checklistAction.newText !== undefined) {
+        taskData.checklist = taskData.checklist.map((item: ChecklistItem) =>
+          item.id === checklistAction.itemId ? { ...item, text: checklistAction.newText } : item
+        );
+      }
+    }
+    // Add activity log
+    if (!taskData.activityLog) taskData.activityLog = [];
+    taskData.activityLog.push({
+      timestamp: new Date().toISOString(),
+      userId: this.actionData.userId,
+      action: `Updated ${this.actionData.property}`,
+      details: JSON.stringify(this.actionData.value)
+    });
+    // Emit socket event
+    this.socket.emit('object-property-updated', {
+      objectId: this.actionData.objectId,
+      property: this.actionData.property,
+      value: this.actionData.value,
+      userId: this.actionData.userId,
+      // Advanced: include activity log entry and full taskData for richer sync
+      activityLogEntry: taskData.activityLog[taskData.activityLog.length - 1],
+      fullTaskData: { ...taskData }
+    });
+    // Advanced: visually highlight the object for a moment
+    if (object.material instanceof THREE.MeshStandardMaterial) {
+      const originalColor = object.material.color.getHex();
+      object.material.color.set(0xffff00); // flash yellow
+      setTimeout(() => {
+        if (object.material instanceof THREE.MeshStandardMaterial) {
+          object.material.color.set(originalColor);
+        }
+      }, 300);
+    }
+    // Advanced: play a sound (if browser supports)
+    if (typeof window !== 'undefined' && typeof window.Audio === 'function') {
+      // Use a short sound file in public/ (replace with a real .mp3/.wav for production)
+      const audio = new window.Audio('/vite.svg');
+      if (audio) {
+        audio.volume = 0.1;
+        audio.play().catch(() => {});
+      }
+    }
+    // --- More Advanced Features ---
+    // 1. Animate object scale for feedback
+    if (object instanceof THREE.Mesh) {
+      const originalScale = object.scale.clone();
+      gsap.to(object.scale, { x: originalScale.x * 1.15, y: originalScale.y * 1.15, z: originalScale.z * 1.15, duration: 0.12, yoyo: true, repeat: 1, ease: 'power1.inOut' });
+    }
+    // 2. Broadcast a toast/notification to all users (if a global function exists)
+    if (typeof window !== 'undefined' && typeof (window as any).showToast === 'function') {
+      (window as any).showToast(`Task updated: ${taskData.title}`);
+    }
+    // 3. Add a confetti effect for checklist completion
+    if (this.actionData.property === 'taskChecklistUpdate' && Array.isArray(taskData.checklist)) {
+      const allComplete = taskData.checklist.length > 0 && taskData.checklist.every((item: ChecklistItem) => item.completed);
+      if (allComplete && typeof window !== 'undefined' && typeof (window as any).confetti === 'function') {
+        (window as any).confetti();
+      }
+    }
+    // 4. Add a browser notification (if permission granted)
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      new Notification('Task updated', { body: `${taskData.title} was updated.` });
+    }
+    console.log(`[UpdateTaskPropertyCommandImpl] Executed for ${this.actionData.objectId}:`, this.actionData.property, this.actionData.value);
   }
 
   undo(): void {
-    const object = this.interactiveObjectsRef.current.find(obj => obj.userData.sharedId === this.commandData.objectId);
-    if (object && object.userData.taskData) {
-      const taskData = object.userData.taskData as TaskData;
-      let logEntryDetails = '';
-      let actionDescription = `Undo ${this.commandData.property} update`;
-
-      if (this.commandData.property === 'taskTitle') {
-        taskData.title = this.commandData.oldValue as string;
-        actionDescription = 'Task title update undone';
-        logEntryDetails = `Title reverted from "${this.commandData.value}" to "${this.commandData.oldValue}"`;
-      } else if (this.commandData.property === 'taskDescription') {
-        taskData.description = this.commandData.oldValue as string; // Assuming oldValue for description is also stored for undo
-        actionDescription = 'Task description update undone';
-        logEntryDetails = `Description reverted.`;
-      } else if (this.commandData.property === 'taskChecklistUpdate') {
-        // Reverting checklist requires setting it back to the old state.
-        // The `oldValue` for checklist updates should be the entire checklist *before* the operation.
-        taskData.checklist = [...(this.commandData.oldValue as ChecklistItem[])];
-        actionDescription = 'Task checklist update undone';
-        const checklistUpdate = this.commandData.value as ChecklistUpdateAction;
-        logEntryDetails = `Checklist reverted to state before action: ${checklistUpdate.action}`;
-      }
-
-      // Remove the last log entry if it was added by this command's execute phase
-      if (this.previousActivityLogLength !== undefined && taskData.activityLog && taskData.activityLog.length > this.previousActivityLogLength) {
-        taskData.activityLog.pop();
-      }
-      // Optionally, add an 'undo' log entry
-      const undoLogEntry: ActivityLogEntry = {
-        timestamp: new Date().toISOString(),
-        userId: this.commandData.userId,
-        action: actionDescription,
-        details: logEntryDetails,
-      };
-      if (!taskData.activityLog) taskData.activityLog = [];
-      taskData.activityLog.push(undoLogEntry);
-
-      this.socket.emit('object-property-updated', {
-        objectId: this.commandData.objectId,
-        property: this.commandData.property,
-        value: this.commandData.oldValue, // Send the OLD value back for remote undo
-        userId: this.commandData.userId,
-        activityLogEntry: undoLogEntry, // Send the undo log entry
-      });
+    const object = this.interactiveObjectsRef.current.find(obj => obj.userData.sharedId === this.actionData.objectId);
+    if (!object) {
+      console.error(`[UpdateTaskPropertyCommandImpl UNDO] Object not found: ${this.actionData.objectId}`);
+      return;
     }
+    const taskData = object.userData.taskData;
+    if (!taskData) {
+      console.error(`[UpdateTaskPropertyCommandImpl UNDO] No taskData for object: ${this.actionData.objectId}`);
+      return;
+    }
+    if (this.actionData.property === 'taskTitle' && typeof this.oldValue === 'string') {
+      taskData.title = this.oldValue;
+    } else if (this.actionData.property === 'taskDescription' && typeof this.oldValue === 'string') {
+      taskData.description = this.oldValue;
+    } else if (this.actionData.property === 'taskChecklistUpdate' && Array.isArray(this.oldValue)) {
+      taskData.checklist = [...this.oldValue];
+    }
+    // Add activity log
+    if (!taskData.activityLog) taskData.activityLog = [];
+    taskData.activityLog.push({
+      timestamp: new Date().toISOString(),
+      userId: this.actionData.userId,
+      action: `Undo ${this.actionData.property}`,
+      details: JSON.stringify(this.oldValue)
+    });
+    // Emit socket event for undo
+    this.socket.emit('object-property-updated', {
+      objectId: this.actionData.objectId,
+      property: this.actionData.property,
+      value: this.oldValue,
+      userId: this.actionData.userId,
+      activityLogEntry: taskData.activityLog[taskData.activityLog.length - 1],
+      fullTaskData: { ...taskData }
+    });
+    // Advanced: visually highlight the object for a moment
+    if (object.material instanceof THREE.MeshStandardMaterial) {
+      const originalColor = object.material.color.getHex();
+      object.material.color.set(0x00ffff); // flash cyan for undo
+      setTimeout(() => {
+        if (object.material instanceof THREE.MeshStandardMaterial) {
+          object.material.color.set(originalColor);
+        }
+      }, 300);
+    }
+    // Advanced: play a sound (if browser supports)
+    if (typeof window !== 'undefined' && typeof window.Audio === 'function') {
+      const audio = new window.Audio('/vite.svg');
+      if (audio) {
+        audio.volume = 0.1;
+        audio.play().catch(() => {});
+      }
+    }
+    // --- More Advanced Features (undo) ---
+    // 1. Animate object scale for feedback
+    if (object instanceof THREE.Mesh) {
+      const originalScale = object.scale.clone();
+      gsap.to(object.scale, { x: originalScale.x * 0.85, y: originalScale.y * 0.85, z: originalScale.z * 0.85, duration: 0.12, yoyo: true, repeat: 1, ease: 'power1.inOut' });
+    }
+    // 2. Broadcast a toast/notification to all users (if a global function exists)
+    if (typeof window !== 'undefined' && typeof (window as any).showToast === 'function') {
+      (window as any).showToast(`Undo: ${taskData.title}`);
+    }
+    // 3. Add a browser notification (if permission granted)
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      new Notification('Undo task update', { body: `${taskData.title} was reverted.` });
+    }
+    console.log(`[UpdateTaskPropertyCommandImpl] Undone for ${this.actionData.objectId}:`, this.actionData.property, this.oldValue);
   }
 }
 
@@ -691,6 +747,8 @@ function App() {
 
   const [showLandingPage, setShowLandingPage] = useState(true); // State to control landing page visibility
 
+  const sphereYUpdateAttempted = useRef(false); // To track if Y-update has been attempted
+
   useEffect(() => {
     currentSelectedObjectForPanelRef.current = currentSelectedObjectForPanel;
   }, [currentSelectedObjectForPanel]);
@@ -801,6 +859,7 @@ function App() {
       if (objectIdForRefresh && currentSelectedObjectForPanelRef.current && currentSelectedObjectForPanelRef.current.userData.sharedId === objectIdForRefresh) {
         const updatedObject = interactiveObjects.current.find(obj => obj.userData.sharedId === objectIdForRefresh);
         if (updatedObject) {
+          console.log('[handleUndo] Refreshing panel for object:', updatedObject.userData.sharedId, 'with taskData:', JSON.stringify(updatedObject.userData.taskData));
           setCurrentSelectedObjectForPanel(null); 
           setCurrentSelectedObjectForPanel(updatedObject);
         }
@@ -830,6 +889,7 @@ function App() {
       if (objectIdForRefresh && currentSelectedObjectForPanelRef.current && currentSelectedObjectForPanelRef.current.userData.sharedId === objectIdForRefresh) {
         const updatedObject = interactiveObjects.current.find(obj => obj.userData.sharedId === objectIdForRefresh);
         if (updatedObject) {
+          console.log('[handleRedo] Refreshing panel for object:', updatedObject.userData.sharedId, 'with taskData:', JSON.stringify(updatedObject.userData.taskData));
           setCurrentSelectedObjectForPanel(null);
           setCurrentSelectedObjectForPanel(updatedObject);
         }
@@ -837,6 +897,36 @@ function App() {
       console.log(`[Undo] Redone: ${command.description}. Undo: ${undoStackRef.current.length}, Redo: ${redoStackRef.current.length}`);
     }
   }, [updateUndoRedoState]);
+
+  const handlePropertyUpdateFromPanel = useCallback((
+    objectId: string,
+    property: 'taskTitle' | 'taskDescription' | 'taskChecklistUpdate',
+    value: string | ChecklistUpdateAction,
+    oldValue: string | ChecklistItem[]
+  ) => {
+    const object = interactiveObjects.current.find(obj => obj.userData.sharedId === objectId);
+    if (!object) {
+      console.error(`[handlePropertyUpdateFromPanel] Object not found: ${objectId}`);
+      return;
+    }
+
+    const commandData: UpdateTaskPropertyCommandData = {
+      objectId,
+      property,
+      value,
+      oldValue,
+      userId: socket.id || 'system',
+    };
+
+    const description = `Update ${property} for ${objectId}`;
+    const command = new UpdateTaskPropertyCommandImpl(
+      interactiveObjects,
+      socket,
+      commandData,
+      description
+    );
+    recordAndExecuteCommand(command);
+  }, [recordAndExecuteCommand]); // Added recordAndExecuteCommand to dependencies
 
   // Handler to switch from LandingPage to the main app
   const handleEnterApp = () => {
@@ -906,6 +996,19 @@ function App() {
       cube.position.x = -2;
       cube.userData.originalColor = new THREE.Color(0x007bff);
       cube.userData.sharedId = 'shared_cube';
+      cube.userData.objectType = 'cube'; // Assuming objectType might be useful
+      cube.userData.taskData = {
+        title: 'Cube Task',
+        description: 'Default description for cube task.',
+        status: 'To Do',
+        checklist: [],
+        activityLog: [{
+          timestamp: new Date().toISOString(),
+          userId: 'system',
+          action: 'Task Created',
+          details: 'Task initialized for shared_cube'
+        }]
+      };
       scene.add(cube);
       interactiveObjects.current.push(cube);
       originalMaterials.current.set(cube, cubeMaterial.clone());
@@ -916,6 +1019,19 @@ function App() {
       sphere.position.x = 0;
       sphere.userData.originalColor = new THREE.Color(0xff4500);
       sphere.userData.sharedId = 'shared_sphere';
+      sphere.userData.objectType = 'sphere';
+      sphere.userData.taskData = {
+        title: 'Sphere Task',
+        description: 'Default description for sphere task.',
+        status: 'To Do',
+        checklist: [],
+        activityLog: [{
+          timestamp: new Date().toISOString(),
+          userId: 'system',
+          action: 'Task Created',
+          details: 'Task initialized for shared_sphere'
+        }]
+      };
       scene.add(sphere);
       interactiveObjects.current.push(sphere);
       originalMaterials.current.set(sphere, sphereMaterial.clone());
@@ -926,6 +1042,19 @@ function App() {
       torus.position.x = 2;
       torus.userData.originalColor = new THREE.Color(0x28a745);
       torus.userData.sharedId = 'shared_torus';
+      torus.userData.objectType = 'torus';
+      torus.userData.taskData = {
+        title: 'Torus Task',
+        description: 'Default description for torus task.',
+        status: 'To Do',
+        checklist: [],
+        activityLog: [{
+          timestamp: new Date().toISOString(),
+          userId: 'system',
+          action: 'Task Created',
+          details: 'Task initialized for shared_torus'
+        }]
+      };
       scene.add(torus);
       interactiveObjects.current.push(torus);
       originalMaterials.current.set(torus, torusMaterial.clone());
@@ -1077,99 +1206,137 @@ function App() {
       });
 
       socket.on('object-property-updated', (data: ObjectPropertyUpdateData) => {
+        console.log('[Socket object-property-updated] Received data:', JSON.stringify(data, null, 2)); 
+
         const objectToUpdate = interactiveObjects.current.find(obj => obj.userData.sharedId === data.objectId);
         if (objectToUpdate) {
+          console.log(`[Socket object-property-updated] Found object ${data.objectId}. Current taskData BEFORE update:`, JSON.stringify(objectToUpdate.userData.taskData, null, 2));
           let panelNeedsRefresh = false;
           const taskData = objectToUpdate.userData.taskData as TaskData | undefined;
 
-          // Ensure activityLog exists
           if (taskData && !taskData.activityLog) {
             taskData.activityLog = [];
+          }
+          if (data.activityLogEntry) {
+            console.log(`[Socket object-property-updated] Received activityLogEntry:`, JSON.stringify(data.activityLogEntry, null, 2));
           }
 
           if (data.property === 'color' && typeof data.value === 'string' && objectToUpdate.material instanceof THREE.MeshStandardMaterial) {
             objectToUpdate.material.color.set(data.value);
             objectToUpdate.userData.originalColor = new THREE.Color(data.value);
             panelNeedsRefresh = true;
-            if (taskData && data.userId) {
-              taskData.activityLog.push(data.activityLogEntry || {
+            if (taskData && data.userId && data.activityLogEntry) {
+               const logExists = taskData.activityLog.some(entry => entry.timestamp === data.activityLogEntry!.timestamp && entry.userId === data.activityLogEntry!.userId && entry.action === data.activityLogEntry!.action);
+               if (!logExists) {
+                taskData.activityLog.push(data.activityLogEntry);
+                console.log(`[Socket object-property-updated] Pushed received activityLogEntry for color update.`);
+               } else {
+                console.log(`[Socket object-property-updated] Skipped pushing duplicate activityLogEntry for color update.`);
+               }
+            } else if (taskData && data.userId) {
+              taskData.activityLog.push({
                 timestamp: new Date().toISOString(),
                 userId: data.userId,
-                action: 'Color updated',
+                action: 'Color updated (remote)',
                 details: `Color changed to ${data.value}`
               });
+              console.log(`[Socket object-property-updated] Pushed generated activityLogEntry for remote color update.`);
             }
           } else if (data.property === 'scale' && typeof data.value === 'object' && data.value !== null && 'x' in data.value && 'y' in data.value && 'z' in data.value) {
             objectToUpdate.scale.set(data.value.x, data.value.y, data.value.z);
             panelNeedsRefresh = true;
-            if (taskData && data.userId) {
-              taskData.activityLog.push(data.activityLogEntry || {
+            if (taskData && data.userId && data.activityLogEntry) {
+              const logExists = taskData.activityLog.some(entry => entry.timestamp === data.activityLogEntry!.timestamp && entry.userId === data.activityLogEntry!.userId && entry.action === data.activityLogEntry!.action);
+              if (!logExists) {
+                taskData.activityLog.push(data.activityLogEntry);
+                console.log(`[Socket object-property-updated] Pushed received activityLogEntry for scale update.`);
+              } else {
+                console.log(`[Socket object-property-updated] Skipped pushing duplicate activityLogEntry for scale update.`);
+              }
+            } else if (taskData && data.userId) {
+              taskData.activityLog.push({
                 timestamp: new Date().toISOString(),
                 userId: data.userId,
-                action: 'Scale updated',
+                action: 'Scale updated (remote)',
                 details: `Scale changed to X:${data.value.x}, Y:${data.value.y}, Z:${data.value.z}`
               });
+              console.log(`[Socket object-property-updated] Pushed generated activityLogEntry for remote scale update.`);
             }
           } else if (taskData && data.property === 'taskTitle' && typeof data.value === 'string') {
             const oldTitle = taskData.title;
             taskData.title = data.value;
+            console.log(`[Socket object-property-updated] Task title updated for ${data.objectId}. Old: "${oldTitle}", New: "${taskData.title}"`);
             panelNeedsRefresh = true;
-            if (data.userId) {
-              taskData.activityLog.push(data.activityLogEntry || {
-                timestamp: new Date().toISOString(),
-                userId: data.userId,
-                action: 'Task title updated',
-                details: `Title changed from "${oldTitle}" to "${data.value}"`
-              });
+            if (data.userId && data.activityLogEntry) { 
+              const logExists = taskData.activityLog.some(entry => 
+                  entry.timestamp === data.activityLogEntry!.timestamp && entry.userId === data.activityLogEntry!.userId && entry.action === data.activityLogEntry!.action
+              );
+              if (!logExists) {
+                  taskData.activityLog.push(data.activityLogEntry);
+                  console.log(`[Socket object-property-updated] Pushed received activityLogEntry for title update.`);
+              } else {
+                  console.log(`[Socket object-property-updated] Skipped pushing duplicate activityLogEntry for title update.`);
+              }
+            } else if (data.userId) { 
+                taskData.activityLog.push({
+                  timestamp: new Date().toISOString(),
+                  userId: data.userId,
+                  action: 'Task title updated (remote)',
+                  details: `Title changed from "${oldTitle}" to "${data.value}"`
+                });
+                console.log(`[Socket object-property-updated] Pushed generated activityLogEntry for remote title update.`);
             }
           } else if (taskData && data.property === 'taskDescription' && typeof data.value === 'string') {
+            // const oldDescription = taskData.description; // Commented out as it's unused
             taskData.description = data.value;
+            console.log(`[Socket object-property-updated] Task description updated for ${data.objectId}.`);
             panelNeedsRefresh = true;
-            if (data.userId) {
-              taskData.activityLog.push(data.activityLogEntry || {
-                timestamp: new Date().toISOString(),
-                userId: data.userId,
-                action: 'Task description updated',
-                details: 'Description updated'
-              });
-            }
           } else if (taskData && data.property === 'taskStatus' && typeof data.value === 'string') {
             const oldStatus = taskData.status;
             const newStatus = data.value as TaskData['status'];
+            console.log(`[Socket object-property-updated] Task status update for ${data.objectId}. Old: "${oldStatus}", Attempted New: "${newStatus}"`);
             if (taskData.status !== newStatus) {
               taskData.status = newStatus;
               animateTaskStatusUpdate(objectToUpdate);
-              if (data.userId) {
-                // If an activityLogEntry is provided with the event, use it directly
-                // This is typically the case for status changes from MoveObjectCommandImpl
-                if (data.activityLogEntry) {
-                  taskData.activityLog.push(data.activityLogEntry);
+              console.log(`[Socket object-property-updated] Status changed to "${newStatus}" for ${data.objectId}.`);
+              if (data.userId && data.activityLogEntry) {
+                const logExists = taskData.activityLog.some(entry => entry.timestamp === data.activityLogEntry!.timestamp && entry.userId === data.activityLogEntry!.userId && entry.action === data.activityLogEntry!.action);
+                if (!logExists) {
+                    taskData.activityLog.push(data.activityLogEntry);
+                    console.log(`[Socket object-property-updated] Pushed received activityLogEntry for status update.`);
                 } else {
-                   taskData.activityLog.push({
-                    timestamp: new Date().toISOString(),
-                    userId: data.userId,
-                    action: 'Task status updated',
-                    details: `Status changed from '${oldStatus}' to '${newStatus}'`
-                  });
+                    console.log(`[Socket object-property-updated] Skipped pushing duplicate activityLogEntry for status update.`);
                 }
+              } else if (data.userId) {
+                 taskData.activityLog.push({
+                  timestamp: new Date().toISOString(),
+                  userId: data.userId,
+                  action: 'Task status updated (remote)',
+                  details: `Status changed from '${oldStatus}' to '${newStatus}'`
+                });
+                console.log(`[Socket object-property-updated] Pushed generated activityLogEntry for remote status update.`);
               }
+            } else {
+              console.log(`[Socket object-property-updated] Status for ${data.objectId} already "${newStatus}". No change made.`);
             }
             panelNeedsRefresh = true;
           } else if (taskData && data.property === 'taskChecklistUpdate' && typeof data.value === 'object') {
             const checklistUpdate = data.value as ChecklistUpdateAction;
+            console.log(`[Socket object-property-updated] Checklist update for ${data.objectId}. Action: ${checklistUpdate.action}, ItemID: ${checklistUpdate.itemId}, Item: ${JSON.stringify(checklistUpdate.item)}`);
             let itemTextForLog = '';
 
-            // Ensure activityLog exists on taskData, if not already
             if (!taskData.activityLog) {
               taskData.activityLog = [];
             }
 
             if (checklistUpdate.action === 'add') {
-              if (checklistUpdate.item) { // Explicitly check if item exists
-                // Avoid adding duplicate if already exists from local execution
+              if (checklistUpdate.item) { 
                 if (!taskData.checklist.find(i => i.id === checklistUpdate.item!.id)) {
                   taskData.checklist.push(checklistUpdate.item);
                   itemTextForLog = checklistUpdate.item.text;
+                   console.log(`[Socket object-property-updated] Checklist: Added item "${checklistUpdate.item?.text}"`);
+                } else {
+                  console.log(`[Socket object-property-updated] Checklist: Item "${checklistUpdate.item?.text}" already exists, not adding again.`);
                 }
               } else {
                 console.warn('[Socket object-property-updated] Checklist add action received without item data.');
@@ -1177,52 +1344,59 @@ function App() {
             } else if (checklistUpdate.action === 'remove' && checklistUpdate.itemId) {
               const itemToRemove = taskData.checklist.find(i => i.id === checklistUpdate.itemId);
               if (itemToRemove) itemTextForLog = itemToRemove.text;
-              taskData.checklist = taskData.checklist.filter(item => item.id !== checklistUpdate.itemId);
+              taskData.checklist = taskData.checklist.filter((item: ChecklistItem) => item.id !== checklistUpdate.itemId);
+              console.log(`[Socket object-property-updated] Checklist: Removed item "${itemTextForLog}" (ID: ${checklistUpdate.itemId})`);
             } else if (checklistUpdate.action === 'toggle' && checklistUpdate.itemId && typeof checklistUpdate.completed === 'boolean') {
               const itemToToggle = taskData.checklist.find(item => item.id === checklistUpdate.itemId);
               if (itemToToggle) {
                 itemToToggle.completed = checklistUpdate.completed;
                 itemTextForLog = itemToToggle.text;
+                console.log(`[Socket object-property-updated] Checklist: Toggled item "${itemTextForLog}" to ${checklistUpdate.completed}`);
               }
             } else if (checklistUpdate.action === 'editText' && checklistUpdate.itemId && typeof checklistUpdate.newText === 'string') {
               const itemToEdit = taskData.checklist.find(item => item.id === checklistUpdate.itemId);
               if (itemToEdit) {
                 itemTextForLog = `from "${itemToEdit.text}" to "${checklistUpdate.newText}"`;
+                console.log(`[Socket object-property-updated] Checklist: Edited item ID ${checklistUpdate.itemId} ${itemTextForLog}`);
                 itemToEdit.text = checklistUpdate.newText;
               }
             }
+            console.log(`[Socket object-property-updated] Checklist for ${data.objectId} AFTER update:`, JSON.stringify(taskData.checklist, null, 2));
             panelNeedsRefresh = true;
-            if (data.userId) {
-               // Use provided log entry if available, otherwise generate one
-              if (data.activityLogEntry) {
-                // Check for duplicate log entry before pushing
-                const logExists = taskData.activityLog.some(entry => 
+            if (data.userId && data.activityLogEntry) {
+              const logExists = taskData.activityLog.some(entry => 
                   entry.timestamp === data.activityLogEntry!.timestamp && 
                   entry.userId === data.activityLogEntry!.userId &&
                   entry.action === data.activityLogEntry!.action &&
-                  entry.details === data.activityLogEntry!.details
-                );
-                if (!logExists) {
+                  entry.details === data.activityLogEntry!.details 
+              );
+              if (!logExists) {
                   taskData.activityLog.push(data.activityLogEntry);
-                }
+                  console.log(`[Socket object-property-updated] Pushed received activityLogEntry for checklist update.`);
               } else {
-                taskData.activityLog.push({
-                  timestamp: new Date().toISOString(),
-                  userId: data.userId,
-                  action: `Checklist ${checklistUpdate.action}`,
-                  details: itemTextForLog || checklistUpdate.itemId
-                });
+                  console.log(`[Socket object-property-updated] Skipped pushing duplicate activityLogEntry for checklist update.`);
               }
+            } else if (data.userId) {
+              taskData.activityLog.push({
+                timestamp: new Date().toISOString(),
+                userId: data.userId,
+                action: `Checklist ${checklistUpdate.action} (remote)`,
+                details: itemTextForLog || checklistUpdate.itemId || 'N/A'
+              });
+              console.log(`[Socket object-property-updated] Pushed generated activityLogEntry for remote checklist update.`);
             }
           }
+          console.log(`[Socket object-property-updated] Object ${data.objectId} taskData AFTER update:`, JSON.stringify(objectToUpdate.userData.taskData, null, 2));
 
           if (panelNeedsRefresh) {
             if (currentSelectedObjectForPanelRef.current && currentSelectedObjectForPanelRef.current.userData.sharedId === data.objectId) {
-              // Force a refresh of the PropertiesPanel by re-setting the selected object
+              console.log(`[Socket object-property-updated] Requesting panel refresh for ${data.objectId}.`);
               setCurrentSelectedObjectForPanel(null); 
               setCurrentSelectedObjectForPanel(objectToUpdate);
             }
           }
+        } else {
+          console.warn(`[Socket object-property-updated] Object with ID ${data.objectId} not found locally.`);
         }
       });
 
@@ -1477,7 +1651,7 @@ function App() {
 
           capturedOriginalMaterials.forEach(mat => {
             if (Array.isArray(mat)) {
-              mat.forEach(m => m.dispose());
+              mat.forEach(m => m.dispose()); // Corrected: m.dispose() instead of mat.dispose()
             } else {
               mat.dispose();
             }
@@ -1523,113 +1697,74 @@ function App() {
     }
   }, [showLandingPage, recordAndExecuteCommand, updateUndoRedoState, handleUndo, handleRedo, animateTaskStatusUpdate]);
 
-  const handleCreateObject = (type: 'cube' | 'sphere' | 'torus') => {
-    if (!sceneRef.current) return;
-    const objectIdSuffix = nextObjectId.current++; 
-    const sharedId = `task_${type}_${objectIdSuffix}`;
-    const color = Math.random() * 0xffffff;
-    const toDoZone = listZonesRef.current.find(zone => zone.name === 'To Do');
-    const position = toDoZone
-      ? { x: toDoZone.position.x + (Math.random() - 0.5) * toDoZone.size.width * 0.8,
-          y: 0.5, 
-          z: toDoZone.position.z + (Math.random() - 0.5) * toDoZone.size.depth * 0.8 }
-      : { x: Math.random() * 4 - 2, y: 0.5, z: Math.random() * 4 - 2 };
+  const sphereExists = interactiveObjects.current.some(obj => obj.userData.sharedId === 'shared_sphere');
 
-    const initialLogEntry: ActivityLogEntry = {
-      timestamp: new Date().toISOString(),
-      userId: socket.id || 'system', // Use socket.id or a placeholder if not available
-      action: 'Task created',
-      details: `Task of type '${type}' created with title 'New ${type.charAt(0).toUpperCase() + type.slice(1)} Task ${objectIdSuffix + 1}'`
+  useEffect(() => {
+    if (sphereExists && !sphereYUpdateAttempted.current) {
+      const timer = setTimeout(() => {
+        const sphere = interactiveObjects.current.find(obj => obj.userData.sharedId === 'shared_sphere');
+        if (sphere) {
+          sphere.position.y = 5;
+          sphereYUpdateAttempted.current = true;
+          console.log('[App useEffect Y-Update] Updated Y position for shared_sphere.');
+        } else {
+          console.warn('[App useEffect Y-Update] shared_sphere disappeared before update could be applied.');
+        }
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+
+    if (!sphereExists && sphereYUpdateAttempted.current) {
+      sphereYUpdateAttempted.current = false;
+    }
+  }, [sphereExists]);
+
+  useEffect(() => {
+    // Collaborative cursors: update 2D overlay positions
+    function updateCursorOverlay() {
+      const overlay = document.getElementById('collab-cursors-overlay');
+      if (!overlay) return;
+      overlay.innerHTML = '';
+      connectedUsers.forEach(user => {
+        if (user.id === socket.id) return; // Don't show your own cursor
+        const cursorMesh = remoteCursorsRef.current.get(user.id);
+        if (cursorMesh && rendererRef.current && cameraRef.current) {
+          // Project 3D position to 2D screen
+          const vector = cursorMesh.position.clone();
+          vector.project(cameraRef.current);
+          const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+          const y = (-vector.y * 0.5 + 0.5) * window.innerHeight;
+          const dot = document.createElement('div');
+          dot.style.position = 'absolute';
+          dot.style.left = `${x - 7}px`;
+          dot.style.top = `${y - 7}px`;
+          dot.style.width = '14px';
+          dot.style.height = '14px';
+          dot.style.borderRadius = '50%';
+          dot.style.background = user.color;
+          dot.style.border = '2px solid #fff';
+          dot.style.boxShadow = `0 0 6px ${user.color}`;
+          dot.style.opacity = '0.85';
+          dot.style.pointerEvents = 'none';
+          dot.title = user.id;
+          overlay.appendChild(dot);
+        }
+      });
+    }
+    // Update overlay on every animation frame
+    let animId: number;
+    function animateOverlay() {
+      updateCursorOverlay();
+      animId = requestAnimationFrame(animateOverlay);
+    }
+    animateOverlay();
+    return () => {
+      cancelAnimationFrame(animId);
+      const overlay = document.getElementById('collab-cursors-overlay');
+      if (overlay) overlay.innerHTML = '';
     };
-
-    const taskData: TaskData = {
-      title: `New ${type.charAt(0).toUpperCase() + type.slice(1)} Task ${objectIdSuffix + 1}`,
-      status: 'To Do',
-      description: '',
-      checklist: [],
-      activityLog: [initialLogEntry]
-    };
-
-    const defaultRotation = { x: 0, y: 0, z: 0, order: 'XYZ' as THREE.EulerOrder };
-    const defaultScale = { x: 1, y: 1, z: 1 };
-
-    const commandData: CreateObjectCommandData = {
-      sharedId,
-      type,
-      position,
-      color,
-      taskData,
-      rotation: defaultRotation,
-      scale: defaultScale,
-    };
-
-    const createCommand = new CreateObjectCommandImpl(
-      sceneRef,
-      interactiveObjects,
-      originalMaterials,
-      socket,
-      commandData,
-      `Create ${type} ${sharedId}`
-    );
-    recordAndExecuteCommand(createCommand);
-
-    // Animate the new object scaling in
-    requestAnimationFrame(() => {
-      const newObject = interactiveObjects.current.find(obj => obj.userData.sharedId === sharedId);
-      if (newObject) {
-        const originalScale = { x: 1, y: 1, z: 1 }; 
-        newObject.scale.set(0.01, 0.01, 0.01); 
-        gsap.to(newObject.scale, {
-          x: originalScale.x,
-          y: originalScale.y,
-          z: originalScale.z,
-          duration: 0.5,
-          ease: 'back.out(1.7)',
-          delay: 0.05 
-        });
-      }
-    });
-  };
-
-  const handleDeleteSelectedObject = () => {
-    if (!selectedObject.current || !sceneRef.current) return;
-    const objectToDelete = selectedObject.current;
-    const { sharedId, originalColor, taskData, objectType } = objectToDelete.userData;
-
-    if (!sharedId) return;
-
-    const typeForCommand = objectType || 'cube'; 
-
-    const currentTaskData: TaskData = {
-      title: taskData?.title || sharedId,
-      status: taskData?.status || 'To Do',
-      description: taskData?.description || '',
-      checklist: taskData?.checklist || [],
-      activityLog: taskData?.activityLog || []
-    };
-
-    const commandData: DeleteObjectCommandData = {
-      sharedId,
-      type: typeForCommand as 'cube' | 'sphere' | 'torus',
-      position: { x: objectToDelete.position.x, y: objectToDelete.position.y, z: objectToDelete.position.z },
-      rotation: { x: objectToDelete.rotation.x, y: objectToDelete.rotation.y, z: objectToDelete.rotation.z, order: objectToDelete.rotation.order },
-      scale: { x: objectToDelete.scale.x, y: objectToDelete.scale.y, z: objectToDelete.scale.z },
-      color: originalColor ? originalColor.getHex() : 0xffffff, 
-      taskData: currentTaskData, 
-    };
-
-    const deleteCommand = new DeleteObjectCommandImpl(
-      sceneRef,
-      interactiveObjects,
-      originalMaterials,
-      socket,
-      selectedObject, 
-      setCurrentSelectedObjectForPanel,
-      commandData,
-      `Delete ${sharedId}`
-    );
-    recordAndExecuteCommand(deleteCommand);
-  };
+  }, [connectedUsers]);
 
   // Main return statement
   if (showLandingPage) {
@@ -1639,50 +1774,85 @@ function App() {
   return (
     <>
       <div ref={mountRef} style={{ width: '100vw', height: '100vh', position: 'fixed', top: 0, left: 0 }} />
-      {/* Pass recordAndExecuteCommand to PropertiesPanel for it to initiate commands */}
       <PropertiesPanel 
         selectedObject={currentSelectedObjectForPanel} 
         socket={socket} 
-        recordCommand={recordAndExecuteCommand} 
+        onPropertyUpdate={(property, value, oldValue) => {
+          if (currentSelectedObjectForPanel?.userData?.sharedId) {
+            handlePropertyUpdateFromPanel(currentSelectedObjectForPanel.userData.sharedId, property, value, oldValue);
+          }
+        }}
       />
       <div style={{
         position: 'absolute',
         top: '10px',
         left: '10px',
-        zIndex: 100,
-        background: 'rgba(0,0,0,0.5)',
+        zIndex: 1000,
+        background: 'rgba(255, 255, 255, 0.8)',
         padding: '10px',
         borderRadius: '5px',
-        display: 'flex', 
-        flexWrap: 'wrap', 
-        gap: '5px' 
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '10px'
       }}>
-        <button onClick={handleUndo} disabled={!canUndo}>Undo</button>
-        <button onClick={handleRedo} disabled={!canRedo}>Redo</button>
-        <button onClick={() => handleCreateObject('cube')}>Create Cube Task</button>
-        <button onClick={() => handleCreateObject('sphere')}>Create Sphere Task</button>
-        <button onClick={() => handleCreateObject('torus')}>Create Torus Task</button>
-        <button onClick={handleDeleteSelectedObject} disabled={!selectedObject.current} style={{ marginTop: 'auto' }}>Delete Selected</button>
+        <div>
+          <button onClick={handleUndo} disabled={!canUndo}>Undo</button>
+          <button onClick={handleRedo} disabled={!canRedo}>Redo</button>
+        </div>
+        <div>
+          <h4>Connected Users:</h4>
+          {connectedUsers.length > 0 ? (
+            <ul>
+              {connectedUsers.map(user => (
+                <li key={user.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{
+                    display: 'inline-block',
+                    width: 14,
+                    height: 14,
+                    borderRadius: '50%',
+                    background: user.color,
+                    border: '1px solid #888',
+                    marginRight: 4
+                  }} />
+                  <span style={{ fontWeight: user.id === socket.id ? 'bold' : 'normal', color: user.id === socket.id ? '#007bff' : '#222' }}>
+                    {user.id === socket.id ? 'You' : user.id.substring(0, 8)}
+                  </span>
+                  {/* Collaborative cursor indicator */}
+                  <span id={`cursor-dot-${user.id}`} style={{
+                    display: 'inline-block',
+                    width: 10,
+                    height: 10,
+                    borderRadius: '50%',
+                    background: user.id === socket.id ? '#007bff' : user.color,
+                    marginLeft: 4,
+                    opacity: 0.7,
+                    border: user.id === socket.id ? '2px solid #007bff' : '1px solid #888',
+                    boxShadow: user.id !== socket.id ? '0 0 4px ' + user.color : 'none',
+                    transition: 'background 0.2s, box-shadow 0.2s'
+                  }} />
+                  {/* Real-time presence indicator */}
+                  <span style={{
+                    marginLeft: 4,
+                    color: user.id === socket.id ? '#007bff' : '#28a745',
+                    fontSize: 12,
+                    fontWeight: 600
+                  }}>
+                    {user.id === socket.id ? 'Online (You)' : 'Online'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No other users connected.</p>
+          )}
+        </div>
+        {/* Advanced: Toast/notification area */}
+        <div id="toast-root" style={{ position: 'fixed', bottom: 24, left: 24, zIndex: 2000 }}></div>
       </div>
-      <div style={{
-        position: 'absolute',
-        top: '10px',
-        right: '10px',
-        zIndex: 100,
-        background: 'rgba(0,0,0,0.5)',
-        padding: '10px',
-        borderRadius: '5px',
-        color: 'white'
-      }}>
-        <p>Connected Users:</p>
-        <ul>
-          {connectedUsers.map(user => (
-            <li key={user.id} style={{ color: user.color }}>
-              {user.id === socket.id ? `${user.id.substring(0,5)}... (You)` : `${user.id.substring(0,5)}...`}
-            </li>
-          ))}
-        </ul>
-      </div>
+      {/* Advanced: Confetti canvas (optional, for confetti libraries) */}
+      <canvas id="confetti-canvas" style={{ position: 'fixed', pointerEvents: 'none', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 3000 }} />
+      {/* Collaborative cursors overlay */}
+      <div id="collab-cursors-overlay" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 4000 }} />
     </>
   );
 }
