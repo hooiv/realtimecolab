@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AuthForm from './AuthForm';
 import './LandingPage.css';
@@ -8,8 +8,14 @@ interface LandingPageProps {
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onEnterApp }) => {
-  const { authState, login, register, mockLogin } = useAuth();
+  const { authState, login, register, mockLogin, initializeSocket } = useAuth();
   const [error, setError] = useState<string | null>(null);
+
+  // Ensure socket is initialized when component mounts
+  useEffect(() => {
+    // Initialize socket connection
+    initializeSocket();
+  }, [initializeSocket]);
 
   const handleLogin = async (username: string, password: string) => {
     try {

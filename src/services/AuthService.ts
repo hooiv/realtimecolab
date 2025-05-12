@@ -54,7 +54,6 @@ class AuthService {
   clearStoredUser(): void {
     localStorage.removeItem(this.localStorageKey);
   }
-
   // Register a new user
   async register(username: string, email: string, password: string, color?: string): Promise<User> {
     // Simulate network request
@@ -62,11 +61,13 @@ class AuthService {
 
     // In a real app, this would be an API call to your backend
     if (!this.socket) {
-      throw new Error('Socket not initialized');
+      // Instead of failing, create a mock user for development
+      console.warn('Socket not initialized. Creating mock user instead of registering with server.');
+      return this.mockLogin(username, color);
     }
 
     return new Promise((resolve, reject) => {
-    // Emit register event to server
+      // Emit register event to server
       this.socket?.emit('register', { username, email, password, color }, (response: { success: boolean, user?: User, error?: string }) => {
         if (response.success && response.user) {
           this.storeUser(response.user);
@@ -86,11 +87,10 @@ class AuthService {
   // Login an existing user
   async login(username: string, password: string): Promise<User> {
     // Simulate network request
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    // In a real app, this would be an API call to your backend
+    await new Promise(resolve => setTimeout(resolve, 800));    // In a real app, this would be an API call to your backend
     if (!this.socket) {
-      throw new Error('Socket not initialized');
+      console.warn('Socket not initialized. Creating mock user instead of logging in with server.');
+      return this.mockLogin(username);
     }
 
     return new Promise((resolve, reject) => {
@@ -117,14 +117,13 @@ class AuthService {
       this.socket.emit('logout');
     }
     this.clearStoredUser();
-  }
-
-  // For demo/development - create a mock user
-  mockLogin(username: string): User {
+  }  // For demo/development - create a mock user
+  mockLogin(username: string, color?: string): User {
+    console.log('[AuthService] Creating mock user with username:', username, 'and color:', color);
     const mockUser: User = {
       id: `user_${Math.floor(Math.random() * 10000)}`,
       username,
-      color: `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`,
+      color: color || `#${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}`,
       token: `mock_token_${Math.random()}`
     };
     

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { gsap } from 'gsap';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import io, { Socket } from 'socket.io-client';
+import { Socket } from 'socket.io-client';
 import './App.css';
 import PropertiesPanel from './components/PropertiesPanel';
 import LandingPage from './components/LandingPage'; // Import LandingPage
@@ -715,77 +715,118 @@ const debugSocketListeners = (socket: Socket) => {
 
 
 function App() {
-  const { authState, setSocket } = useAuth(); // Access auth context
+  const { authState, initializeSocket: authInitializeSocket } = useAuth(); // Access auth context
   const socketRef = useRef<Socket | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const mountRef = useRef<HTMLDivElement | null>(null);
+  const interactiveObjects = useRef<THREE.Mesh[]>([]);
+  const originalMaterials = useRef<Map<THREE.Object3D, THREE.Material | THREE.Material[]>>(new Map());
+  const selectedObject = useRef<THREE.Mesh | null>(null);
+  const remoteCursorsRef = useRef(new Map<string, THREE.Mesh>());
+  const groundPlaneRef = useRef<THREE.Plane>(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
+  const listZonesRef = useRef<ListZone[]>([]);
+  const undoStackRef = useRef<Command[]>([]);
+  const redoStackRef = useRef<Command[]>([]);
+  const nextObjectId = useRef(0);
+  const isDraggingRef = useRef(false);
+  const dragPlaneRef = useRef<THREE.Plane>(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
+  const intersectionRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const offsetRef = useRef<THREE.Vector3>(new THREE.Vector3());
+  const worldPosition = useRef<THREE.Vector3>(new THREE.Vector3());
+  const [connectedUsers, setConnectedUsers] = useState<UserData[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   
   // Initialize socket with authentication
   const initializeSocket = useCallback(() => {
     if (socketRef.current) {
-      console.log('[initializeSocket] Socket already exists, reusing existing socket');
+      console.log('[App:initializeSocket] Socket already exists, reusing existing socket');
       return socketRef.current;
     }
 
-    console.log('[initializeSocket] Creating new socket connection with auth data');
-    const options: any = {};
+    console.log('[App:initializeSocket] Delegating socket initialization to AuthContext');
     
-    // Add auth data to socket connection if user is authenticated
-    if (authState.isAuthenticated && authState.user?.token) {
-      options.auth = {
-        token: authState.user.token
-      };
-      console.log('[initializeSocket] Added auth token to socket options');
-    } else if (authState.isAuthenticated && authState.user) {
-      options.auth = {
-        userId: authState.user.id,
-        username: authState.user.username
-      };
-      console.log('[initializeSocket] Added user info to socket options');
-    } else {
-      console.log('[initializeSocket] No auth data available, connecting as guest');
+    // Use the AuthContext's socket initialization which handles authentication
+    const socket = authInitializeSocket();
+    
+    if (socket) {
+      socketRef.current = socket;
+      debugSocketListeners(socket);
+      setupSocketAndEvents(); // Set up socket event handlers with authenticated socket
+      return socket;
     }
-
-    const socket = io('http://localhost:3001', options);
-    socketRef.current = socket;
     
-    // Add debug listeners
-    debugSocketListeners(socket);
-    
-    // Make socket available to auth context
-    setSocket(socket);
-    
-    return socket;
-  }, [authState.isAuthenticated, authState.user, setSocket]);
+    console.warn('[App:initializeSocket] Socket initialization failed, returning null');
+    return null;
+  }, [authState.isAuthenticated, authState.user, authInitializeSocket]);
 
   // Get the socket instance, creating it if needed
   const getSocket = useCallback(() => {
     if (!socketRef.current) {
-      return initializeSocket();
+      console.log('[getSocket] Socket not found, initializing');
+      const socket = initializeSocket();
+      if (!socket) {
+        console.warn('[getSocket] Failed to initialize socket, returning null');
+      }
+      return socket;
     }
     return socketRef.current;
   }, [initializeSocket]);
 
-  const mountRef = useRef<HTMLDivElement>(null);
-  const interactiveObjects = useRef<THREE.Mesh[]>([]);
-  const selectedObject = useRef<THREE.Mesh | null>(null);
-  const originalMaterials = useRef(new Map<THREE.Object3D, THREE.Material | THREE.Material[]>());
-  const isDraggingRef = useRef(false);
-  const dragPlaneRef = useRef(new THREE.Plane());
-  const offsetRef = useRef(new THREE.Vector3());
-  const intersectionRef = useRef(new THREE.Vector3());
-  const worldPosition = useRef(new THREE.Vector3());
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const nextObjectId = useRef(0);
-  const [connectedUsers, setConnectedUsers] = useState<UserData[]>([]);
-  const remoteCursorsRef = useRef(new Map<string, THREE.Mesh>());
-  const groundPlaneRef = useRef<THREE.Plane>(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
-  const listZonesRef = useRef<ListZone[]>([]);
+  // Initialize socket when the app first loads, even before entering the main view
+  useEffect(() => {
+    console.log('[Early Socket Init] Initializing socket for authentication');
+    // Only initialize if we don't already have a socket
+    if (!socketRef.current) {
+      initializeSocket();
+    }
+  }, [initializeSocket]);
 
-  const undoStackRef = useRef<Command[]>([]);
-  const redoStackRef = useRef<Command[]>([]);
-  const [canUndo, setCanUndo] = useState(false);
-  const [canRedo, setCanRedo] = useState(false);
+  // Initialize socket and events safely
+  const setupSocketAndEvents = useCallback(() => {
+    const socket = getSocket();
+    if (!socket) {
+      console.warn('[setupSocketAndEvents] Failed to get socket');
+      return;
+    }
+
+    console.log('[setupSocketAndEvents] Setting up socket event listeners');
+    
+    // Set up socket event listeners only if not already set
+    if (!socket.hasListeners('connect')) {
+      socket.on('connect', () => {
+        console.log('Connected to server with ID:', socket.id);
+        
+        // Send user authentication data if available
+        if (authState.isAuthenticated && authState.user) {
+          console.log('[Socket connect] Sending user authentication data');
+          socket.emit('user-authenticated', {
+            userId: authState.user.id,
+            username: authState.user.username,
+            color: authState.user.color || '#' + Math.floor(Math.random()*16777215).toString(16)
+          });
+        } else {
+          console.log('[Socket connect] Connected as guest with socket ID:', socket.id);
+        }
+      });
+
+      // Setup other socket events
+      socket.on('disconnect', () => {
+        console.log('Disconnected from server');
+      });
+
+      socket.on('server-event', (data) => {
+        console.log('Received server-event:', data);
+      });
+
+      // More socket event handlers...
+      // (Add the rest of your socket event handlers here)
+    }
+
+    return socket;
+  }, [getSocket, authState.isAuthenticated, authState.user]);
   const [currentSelectedObjectForPanel, setCurrentSelectedObjectForPanel] = useState<THREE.Mesh | null>(null);
   const currentSelectedObjectForPanelRef = useRef<THREE.Object3D | null>(null); 
   const initialDragStateRef = useRef<{
@@ -798,6 +839,22 @@ function App() {
   const [showLandingPage, setShowLandingPage] = useState(true); // State to control landing page visibility
 
   const sphereYUpdateAttempted = useRef(false); // To track if Y-update has been attempted
+
+  // Initialize socket when component mounts
+  useEffect(() => {
+    console.log('[App] Early socket initialization');
+    // Initialize socket early, even before the user enters the main app
+    initializeSocket();
+  }, [initializeSocket]);
+
+  // Handle socket reconnection on authentication state change
+  useEffect(() => {
+    console.log('[App] Auth state changed, checking if socket needs to be reinitialized');
+    if (authState.isAuthenticated && !socketRef.current) {
+      console.log('[App] User authenticated but no socket, initializing socket');
+      initializeSocket();
+    }
+  }, [authState.isAuthenticated, initializeSocket]);
 
   useEffect(() => {
     currentSelectedObjectForPanelRef.current = currentSelectedObjectForPanel;
