@@ -1,121 +1,145 @@
-# Real-Time Collaboration Tool with Animations
+# Real-Time Collaboration Platform
 
-This project is a real-time collaboration tool featuring a dynamic user interface inspired by animation libraries like GreenSock (GSAP) and 3D graphics with Three.js. It's built using React, TypeScript, and Vite.
+A modern, interactive real-time collaboration platform built with React, TypeScript, and Socket.IO, featuring smooth animations powered by anime.js.
 
 ## Key Technologies
 
 - **Frontend:** React, TypeScript, Vite
-- **Animation:** GreenSock (GSAP)
-- **3D Graphics:** Three.js
-- **Real-time Backend (Planned):** Node.js, Express.js, WebSockets (e.g., Socket.io)
+- **Animation:** anime.js v4
+- **Real-time Communication:** Socket.IO
+- **State Management:** React Context API
 
-## Getting Started
+## 🚀 Features
 
-Currently, the project includes a basic setup with a 3D animated cube to demonstrate GSAP and Three.js integration.
+- **Real-time Collaboration**: Work together with others in real-time
+- **Smooth Animations**: Beautiful UI transitions and effects using anime.js
+- **Responsive Design**: Works on desktop and mobile devices
+- **User Authentication**: Secure login and user management
+- **Modern UI**: Clean, intuitive interface with interactive elements
 
-### Prerequisites
+## 📋 Prerequisites
 
-- Node.js and npm (or yarn)
+Before you begin, ensure you have the following installed:
+- [Node.js](https://nodejs.org/) (v14.x or higher)
+- [npm](https://www.npmjs.com/) (v6.x or higher)
 
-### Installation
+## 🛠️ Installation
 
-1. Clone the repository (if applicable).
-2. Navigate to the project directory:
+1. Clone the repository:
    ```bash
-   cd your-project-directory
+   git clone https://github.com/hooiv/realtimecolab.git
+   cd realtimecolab
    ```
-3. Install dependencies:
+
+2. Install dependencies:
    ```bash
    npm install
    ```
 
-### Running the Development Server
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-To start the Vite development server:
+4. Open your browser and navigate to:
+   ```
+   http://localhost:5173
+   ```
+
+## 🏗️ Project Structure
+
+```
+src/
+├── components/        # Reusable UI components
+│   ├── AnimatedButton.tsx
+│   ├── AnimatedNotification.tsx
+│   ├── LoadingAnimation.tsx
+│   ├── MorphingAnimation.tsx
+│   ├── TextAnimation.tsx
+│   └── WaveAnimation.tsx
+├── hooks/             # Custom React hooks
+│   ├── useAnime.ts
+│   ├── usePageTransition.ts
+│   └── useScrollAnimation.ts
+├── utils/             # Utility functions
+│   └── animeUtils.ts
+├── context/           # React context providers
+│   └── AuthContext.tsx
+├── App.tsx            # Main application component
+└── main.tsx           # Entry point of the React application
+```
+
+## 🧩 Key Components
+
+### Animation Components
+
+The project uses anime.js v4 for smooth animations:
+
+- **TextAnimation**: Animated text reveals with character-by-character animation
+- **MorphingAnimation**: SVG shape morphing animations
+- **LoadingAnimation**: Various loading indicators
+- **AnimatedButton**: Interactive button with animation effects
+- **WaveAnimation**: Animated wave effects
+- **AnimatedNotification**: Toast notifications with entrance/exit animations
+
+### Custom Hooks
+
+- **useAnime**: React hook for easily using anime.js in components
+- **usePageTransition**: Manages page transition animations
+- **useScrollAnimation**: Triggers animations on scroll
+
+## 🔄 Animation Usage
+
+This project uses anime.js v4 with named exports. Example usage:
+
+```typescript
+import { animate, stagger } from 'animejs';
+
+// Animate elements
+animate('.element', {
+  translateY: [100, 0],
+  opacity: [0, 1],
+  delay: stagger(100),
+  duration: 1000,
+  easing: 'easeOutExpo'
+});
+```
+
+## 🧪 Testing
+
+Run tests with:
 
 ```bash
-npm run dev
+npm test
 ```
 
-This will typically open the application in your browser at `http://localhost:5173`.
+## 📦 Building for Production
 
-## Project Structure (Initial Frontend)
+Build the project for production:
 
-- `public/`: Static assets.
-- `src/`:
-  - `assets/`: Images, fonts, etc.
-  - `components/`: (Planned) Reusable UI components.
-  - `App.tsx`: Main application component, currently showcasing Three.js and GSAP.
-  - `main.tsx`: Entry point of the React application.
-  - `index.css`: Global styles.
-  - `App.css`: Styles for the App component.
-- `index.html`: Main HTML file.
-- `package.json`: Project dependencies and scripts.
-- `tsconfig.json`, `tsconfig.node.json`: TypeScript configurations.
-- `vite.config.ts`: Vite configuration.
-
-## Next Steps
-
-- Develop the core real-time collaboration features.
-- Design and implement the UI/UX with advanced animations and 3D elements.
-- Set up the Node.js/Express.js backend with WebSocket communication.
-- Implement user authentication and data persistence.
-
----
-
-(Original Vite README content below for reference, can be removed or adapted as needed)
-
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+```bash
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The built files will be in the `dist/` directory.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 🔧 Next Steps
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+- Enhance real-time collaboration features
+- Add more interactive animation components
+- Implement data persistence
+- Add user profile customization
+- Develop mobile app version
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
