@@ -1072,18 +1072,21 @@ function App() {
 
       // Additional GSAP animations:
 
-      // For cube: color change and breathing scale
+      // For cube: color change (animating r, g, b properties of the THREE.Color object)
+      // This assumes cube.material.color is a THREE.Color object, which it is for MeshStandardMaterial
       if (cube && cube.material && (cube.material as THREE.MeshStandardMaterial).color) {
-        const cubeTimeline = gsap.timeline({ repeat: -1, yoyo: true });
-        cubeTimeline.to((cube.material as THREE.MeshStandardMaterial).color, {
-          r: 1, g: 0.2, b: 0.2, duration: 3, ease: 'power1.inOut'
-        })
-        .to(cube.scale, {
-          x: 1.1, y: 1.1, z: 1.1, duration: 1.5, ease: 'sine.inOut'
-        }, "-=2.5"); // Overlap with color animation
+        gsap.to((cube.material as THREE.MeshStandardMaterial).color, {
+          r: 1, // Target red
+          g: 0.2, // A bit of green
+          b: 0.2, // A bit of blue -> resulting in a reddish hue
+          duration: 3,
+          repeat: -1,
+          yoyo: true,
+          ease: 'power1.inOut'
+        });
       }
 
-      // For sphere: add rotation around X-axis and Y-axis oscillation
+      // For sphere: add rotation around X-axis to complement existing Y-axis rotation
       if (sphere) {
         gsap.to(sphere.rotation, {
           x: Math.PI * 2,
@@ -1092,22 +1095,16 @@ function App() {
           ease: 'linear',
           delay: 0.5 // Stagger with Y rotation
         });
-        gsap.to(sphere.position, { // Gentle bobbing
-          y: sphere.position.y + 0.2,
-          duration: 2.5,
-          repeat: -1,
-          yoyo: true,
-          ease: 'sine.inOut',
-          delay: 1 // Stagger start
-        });
       }
 
-      // For torus: make its emissive property pulse and add Z-axis rotation
+      // For torus: make its emissive property pulse
       if (torus && torus.material instanceof THREE.MeshStandardMaterial) {
         const torusStandardMaterial = torus.material as THREE.MeshStandardMaterial;
+        // Ensure emissive property exists and is a THREE.Color
         if (!torusStandardMaterial.emissive) {
           torusStandardMaterial.emissive = new THREE.Color(0x000000);
         }
+        // Define a target emissive color (e.g., a fraction of its diffuse color)
         const targetEmissiveColor = new THREE.Color(torusStandardMaterial.color).multiplyScalar(0.4);
 
         gsap.to(torusStandardMaterial.emissive, {
@@ -1118,13 +1115,6 @@ function App() {
           repeat: -1,
           yoyo: true,
           ease: 'sine.inOut'
-        });
-        gsap.to(torus.rotation, { // Add Z-axis rotation
-          z: Math.PI * 2,
-          duration: 15,
-          repeat: -1,
-          ease: 'none', // Use 'none' or 'linear' for continuous rotation
-          delay: 0.2
         });
       }
 
