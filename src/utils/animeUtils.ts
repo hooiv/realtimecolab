@@ -93,6 +93,7 @@ export const animeUtils = {
   ) => {
     const { duration = 1500, delay = 0, easing = 'easeInOutQuad', direction = 'normal', loop = false } = options || {};
 
+    // In anime.js v4, we need to manually calculate the path length
     const paths = document.querySelectorAll(selector);
     paths.forEach(path => {
       const length = (path as SVGPathElement).getTotalLength();
@@ -101,7 +102,12 @@ export const animeUtils = {
     });
 
     return animate(selector, {
-      strokeDashoffset: [0, 0], // We need to update this as setDashoffset is not available in v4
+      strokeDashoffset: [(anime: any) => {
+        // Manual implementation since utils.getPathLength is not available
+        const el = anime.animatable.target;
+        const pathLength = el.getTotalLength ? el.getTotalLength() : 0;
+        return pathLength;
+      }, 0], // Manual implementation for path length
       duration: duration,
       delay: delay,
       easing: easing,

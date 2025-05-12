@@ -1,0 +1,72 @@
+.add-card-button {
+  background: rgba(97, 218, 251, 0.2);
+  color: white;
+  border: 1px solid #61dafb;
+  border-radius: 5px;
+  padding: 0.5rem 1rem;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 120px;
+}
+
+.add-card-button:hover {
+  background: rgba(97, 218, 251, 0.4);
+  transform: scale(1.05);
+}
+
+.card-details-modal {
+  background: rgba(26, 29, 34, 0.95);
+  color: white;
+  padding: 1.5rem;
+  border-radius: 10px;
+  width: 350px;
+  max-height: 500px;
+  overflow: auto;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(97, 218, 251, 0.3);
+}
+
+.card-details-modal h2 {
+  margin-top: 0;
+  color: #61dafb;
+  border-bottom: 1px solid rgba(97, 218, 251, 0.3);
+  padding-bottom: 0.5rem;
+}
+
+.card-details-modal button {
+  background: rgba(97, 218, 251, 0.2);
+  color: white;
+  border: 1px solid #61dafb;
+  border-radius: 5px;
+  padding: 0.5rem 1rem;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 1rem;
+}
+
+.card-details-modal button:hover {
+  background: rgba(97, 218, 251, 0.4);
+}
+
+/* Animation for cards */
+@keyframes cardHover {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0); }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .card-details-modal {
+    width: 300px;
+    padding: 1rem;
+  }
+  
+  .add-card-button {
+    padding: 0.3rem 0.8rem;
+    font-size: 12px;
+    width: 100px;
+  }
+}

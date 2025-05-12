@@ -4,9 +4,9 @@ import { Socket } from 'socket.io-client';
 import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../context/AuthContext';
 
-import type { 
-  ActivityLogEntry, 
-  ChecklistItem, 
+import type {
+  ActivityLogEntry,
+  ChecklistItem,
   ChecklistUpdateAction,
   TaskData as AppTaskData
 } from '../App';
@@ -15,7 +15,7 @@ interface PropertiesPanelProps {
   selectedObject: THREE.Mesh | null;
   socket: Socket | null;
   onPropertyUpdate: (
-    property: 'taskTitle' | 'taskDescription' | 'taskChecklistUpdate',
+    property: 'taskTitle' | 'taskDescription' | 'taskChecklistUpdate' | 'taskStatus',
     value: string | ChecklistUpdateAction,
     oldValue: string | ChecklistItem[]
   ) => void;
@@ -126,26 +126,61 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
 
   const handleTaskStatusChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const newStatus = event.target.value as 'To Do' | 'In Progress' | 'Done';
+
+    // Update local state immediately for responsive UI
     setTaskStatus(newStatus);
-    if (selectedObject && socket) {
+
+    if (selectedObject) {
       const oldStatus = selectedObject.userData.taskData?.status || 'To Do';
-      if (!selectedObject.userData.taskData) {
-        selectedObject.userData.taskData = { title: taskTitle, status: newStatus, description: taskDescription, checklist: checklist, activityLog: activityLog };
-      } else {
-        selectedObject.userData.taskData.status = newStatus;
-      }
-      socket.emit('object-property-updated', {
-        objectId: selectedObject.userData.sharedId,
-        property: 'taskStatus',
-        value: newStatus,
-        userId: socket.id,
-        activityLogEntry: {
-          timestamp: new Date().toISOString(),
-          userId: socket.id || 'unknown',
-          action: 'Task status updated via panel',
-          details: `Status changed from '${oldStatus}' to '${newStatus}'`
+      console.log(`[PropertiesPanel handleTaskStatusChange] Old: "${oldStatus}", New: "${newStatus}"`);
+
+      // Don't update the object directly here - let the command pattern handle it
+      // This ensures proper undo/redo and synchronization
+
+      // Use the onPropertyUpdate callback to trigger the command pattern
+      if (oldStatus !== newStatus) {
+        console.log(`[PropertiesPanel] Status changed from ${oldStatus} to ${newStatus}, triggering update`);
+
+        // Add visual feedback that the status is changing
+        if (selectedObject.material instanceof THREE.MeshStandardMaterial) {
+          // Store original emissive value
+          const originalEmissive = selectedObject.material.emissive.clone();
+
+          // Flash the object to indicate status change
+          selectedObject.material.emissive.set(0xffff00); // Yellow flash
+
+          // Restore original color after animation
+          setTimeout(() => {
+            if (selectedObject && selectedObject.material instanceof THREE.MeshStandardMaterial) {
+              selectedObject.material.emissive.copy(originalEmissive);
+            }
+          }, 300);
         }
-      });
+
+        // Update the object's userData directly for immediate feedback
+        // This ensures the status is updated even if the command pattern fails
+        if (!selectedObject.userData.taskData) {
+          selectedObject.userData.taskData = {
+            title: taskTitle,
+            description: taskDescription,
+            status: newStatus,
+            checklist: checklist,
+            activityLog: activityLog
+          };
+        } else {
+          // Update the status in the object's userData
+          selectedObject.userData.taskData.status = newStatus;
+        }
+
+        // Log the updated task data to verify it's been changed
+        console.log(`[PropertiesPanel] Updated task data directly:`,
+          JSON.stringify(selectedObject.userData.taskData));
+
+        // Trigger the command pattern update
+        onPropertyUpdate('taskStatus', newStatus, oldStatus);
+      } else {
+        console.log(`[PropertiesPanel] Status unchanged (${newStatus}), no update needed`);
+      }
     }
   };
 
@@ -162,10 +197,10 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
   const handleChecklistAction = useCallback((checklistAction: ChecklistUpdateAction) => {
     if (!selectedObject || !socket?.id) return;
 
-    const oldChecklist = selectedObject.userData.taskData?.checklist 
-      ? JSON.parse(JSON.stringify(selectedObject.userData.taskData.checklist)) 
+    const oldChecklist = selectedObject.userData.taskData?.checklist
+      ? JSON.parse(JSON.stringify(selectedObject.userData.taskData.checklist))
       : [];
-    
+
     let updatedChecklist = [...checklist];
     if (checklistAction.action === 'add' && checklistAction.item) {
       updatedChecklist.push(checklistAction.item);
@@ -248,21 +283,24 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
   }
 
   return (
-    <div style={{
-      position: 'absolute',
-      bottom: '20px',
-      left: '20px',
-      background: 'rgba(50, 50, 50, 0.9)',
-      color: 'white',
-      padding: '20px',
-      borderRadius: '8px',
-      zIndex: 200,
-      fontFamily: 'Arial, sans-serif',
-      width: '300px',
-      maxHeight: 'calc(100vh - 40px)',
-      overflowY: 'auto',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
-    }}>
+    <div
+      className="properties-panel"
+      onClick={(e) => e.stopPropagation()} // Prevent clicks from propagating to parent elements
+      style={{
+        position: 'absolute',
+        bottom: '20px',
+        left: '20px',
+        background: 'rgba(50, 50, 50, 0.9)',
+        color: 'white',
+        padding: '20px',
+        borderRadius: '8px',
+        zIndex: 1000, // Increased z-index to ensure it's above other elements
+        fontFamily: 'Arial, sans-serif',
+        width: '300px',
+        maxHeight: 'calc(100vh - 40px)',
+        overflowY: 'auto',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
+      }}>
       <h4 style={{ marginTop: 0, marginBottom: '15px', borderBottom: '1px solid #555', paddingBottom: '10px' }}>
         Properties: <span style={{ fontWeight: 'normal' }}>{selectedObject.userData.sharedId}</span>
       </h4>
@@ -398,8 +436,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedObject, socke
           {activityLog.slice().reverse().map((entry, index) => (
             <li key={index} style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px dashed #333', fontSize: '0.85em' }}>              <div style={{ fontWeight: 'bold', color: '#bbb' }}>
                 {entry.action}                <span style={{ fontWeight: 'normal', color: '#888', marginLeft: '5px' }}>
-                  by {entry.userId === socket?.id || (authState.user && entry.userId === authState.user.id) 
-                      ? `You (${authState.user?.username || 'Guest'})` 
+                  by {entry.userId === socket?.id || (authState.user && entry.userId === authState.user.id)
+                      ? `You (${authState.user?.username || 'Guest'})`
                       : `User-${entry.userId.substring(0,5)}`}
                 </span>
               </div>

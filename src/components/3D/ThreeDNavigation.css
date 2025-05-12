@@ -1,0 +1,30 @@
+.nav-toggle-button {
+  background: rgba(97, 218, 251, 0.2);
+  color: white;
+  border: 1px solid #61dafb;
+  border-radius: 20px;
+  padding: 0.5rem 1rem;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.nav-toggle-button:hover {
+  background: rgba(97, 218, 251, 0.4);
+  transform: scale(1.05);
+}
+
+/* Animation for navigation elements */
+@keyframes navPortalPulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .nav-toggle-button {
+    padding: 0.3rem 0.8rem;
+    font-size: 12px;
+  }
+}
