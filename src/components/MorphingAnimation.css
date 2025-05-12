@@ -1,0 +1,28 @@
+/* Morphing Animation Container Styles */
+.morphing-animation-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 150px;
+}
+
+.morphing-animation-container svg {
+  width: 100%;
+  height: 100%;
+  max-width: 150px;
+  max-height: 150px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .morphing-animation-container {
+    min-height: 120px;
+  }
+  
+  .morphing-animation-container svg {
+    max-width: 120px;
+    max-height: 120px;
+  }
+}

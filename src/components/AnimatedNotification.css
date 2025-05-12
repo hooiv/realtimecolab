@@ -1,0 +1,110 @@
+/* Animated Notification Styling */
+.animated-notification {
+  position: fixed;
+  bottom: 2rem;
+  left: 2rem;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  width: auto;
+  max-width: 400px;
+  min-width: 250px;
+  padding: 1rem;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  overflow: hidden;
+  transform: translateX(-300px);
+  opacity: 0;
+}
+
+.animated-notification::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 4px;
+}
+
+.animated-notification.success::before {
+  background-color: #06D6A0;
+}
+
+.animated-notification.error::before {
+  background-color: #EF476F;
+}
+
+.animated-notification.warning::before {
+  background-color: #FFD166;
+}
+
+.animated-notification.info::before {
+  background-color: #118AB2;
+}
+
+.notification-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  margin-right: 1rem;
+  font-weight: bold;
+}
+
+.notification-icon span {
+  font-size: 1rem;
+}
+
+.animated-notification.success .notification-icon {
+  background-color: rgba(6, 214, 160, 0.1);
+  color: #06D6A0;
+}
+
+.animated-notification.error .notification-icon {
+  background-color: rgba(239, 71, 111, 0.1);
+  color: #EF476F;
+}
+
+.animated-notification.warning .notification-icon {
+  background-color: rgba(255, 209, 102, 0.1);
+  color: #FFD166;
+}
+
+.animated-notification.info .notification-icon {
+  background-color: rgba(17, 138, 178, 0.1);
+  color: #118AB2;
+}
+
+.notification-content {
+  flex-grow: 1;
+}
+
+.notification-content p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+/* For multiple notifications stacking */
+.notification-container {
+  position: fixed;
+  bottom: 2rem;
+  left: 2rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .animated-notification {
+    max-width: calc(100vw - 4rem);
+    left: 1rem;
+    bottom: 1rem;
+  }
+}

@@ -1,0 +1,61 @@
+.particles-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.dot-follow {
+  position: absolute;
+  opacity: 0.6;
+  filter: blur(2px);
+  mix-blend-mode: screen;
+  transition: transform 0.3s ease-out;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.dot-follow::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: inherit;
+  border-radius: inherit;
+  filter: blur(1px);
+  opacity: 0.3;
+}
+
+/* Custom animations for different particles */
+.dot-follow:nth-child(3n) {
+  animation: pulse 4s infinite ease-in-out;
+}
+
+.dot-follow:nth-child(3n + 1) {
+  animation: float 5s infinite ease-in-out;
+}
+
+.dot-follow:nth-child(3n + 2) {
+  animation: spin 6s infinite linear;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

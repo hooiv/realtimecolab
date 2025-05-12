@@ -1,0 +1,33 @@
+.text-animation-container {
+  display: inline-block;
+  overflow: hidden;
+  position: relative;
+}
+
+.text-anim-char {
+  display: inline-block;
+  transform-origin: center;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  transition: transform 0.2s ease;
+}
+
+.text-anim-char:hover {
+  transform: scale(1.2) translateY(-2px);
+  color: var(--highlight-color, #4a9eff);
+}
+
+/* Add a subtle wave effect on container hover */
+.text-animation-container:hover .text-anim-char {
+  animation: wave 0.3s ease-in-out;
+  animation-delay: calc(var(--char-index, 0) * 0.05s);
+}
+
+@keyframes wave {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}

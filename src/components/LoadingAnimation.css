@@ -1,0 +1,136 @@
+/* Loading Animation Styles */
+.loading-animation {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Animation container */
+.animation-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  margin-bottom: 0.5rem;
+}
+
+/* Size variations */
+.loading-animation.small .animation-container {
+  height: 30px;
+}
+
+.loading-animation.large .animation-container {
+  height: 50px;
+}
+
+/* Loading text */
+.loading-text {
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+}
+
+.loading-animation.small .loading-text {
+  font-size: 0.75rem;
+}
+
+.loading-animation.large .loading-text {
+  font-size: 1rem;
+}
+
+/* Dots animation */
+.loading-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin: 0 4px;
+}
+
+.loading-animation.small .loading-dot {
+  width: 8px;
+  height: 8px;
+  margin: 0 3px;
+}
+
+.loading-animation.large .loading-dot {
+  width: 16px;
+  height: 16px;
+  margin: 0 6px;
+}
+
+/* Bars animation */
+.loading-bar {
+  width: 5px;
+  height: 20px;
+  margin: 0 3px;
+  border-radius: 2px;
+}
+
+.loading-animation.small .loading-bar {
+  width: 3px;
+  margin: 0 2px;
+}
+
+.loading-animation.large .loading-bar {
+  width: 7px;
+  margin: 0 4px;
+}
+
+/* Spinner animation */
+.spinner-ring {
+  width: 30px;
+  height: 30px;
+  border: 3px solid;
+  border-radius: 50%;
+}
+
+.loading-animation.small .spinner-ring {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+.loading-animation.large .spinner-ring {
+  width: 40px;
+  height: 40px;
+  border-width: 4px;
+}
+
+/* Boxes animation */
+.loading-box {
+  width: 12px;
+  height: 12px;
+  margin: 0 3px;
+}
+
+.loading-animation.small .loading-box {
+  width: 8px;
+  height: 8px;
+  margin: 0 2px;
+}
+
+.loading-animation.large .loading-box {
+  width: 16px;
+  height: 16px;
+  margin: 0 4px;
+}
+
+/* Pulse animation */
+.pulse-circle {
+  width: 30px;
+  height: 30px;
+  border: 3px solid;
+  border-radius: 50%;
+}
+
+.loading-animation.small .pulse-circle {
+  width: 20px;
+  height: 20px;
+  border-width: 2px;
+}
+
+.loading-animation.large .pulse-circle {
+  width: 40px;
+  height: 40px;
+  border-width: 4px;
+}
